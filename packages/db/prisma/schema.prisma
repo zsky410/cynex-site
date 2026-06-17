@@ -1,0 +1,671 @@
+// Cynex MVP schema. Amounts are stored as Int in VND (no minor units).
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "postgresql"
+  url      = env("DATABASE_URL")
+}
+
+// ----------------------------------------------------------------------------
+// Enums (mirror packages/shared/src/enums.ts)
+// ----------------------------------------------------------------------------
+
+enum FulfillmentType {
+  CUSTOMER_ACCOUNT_UPGRADE
+  DEDICATED_ACCOUNT
+  SHARED_ACCOUNT
+  LICENSE_KEY
+  MANUAL_DELIVERY
+}
+
+enum PaymentStatus {
+  pending
+  paid
+  failed
+  cancelled
+  refunded
+}
+
+enum FulfillmentStatus {
+  waiting_payment
+  paid_waiting_admin
+  processing
+  assigned
+  delivered
+  failed
+  cancelled
+  refunded
+}
+
+enum PaymentProvider {
+  payos
+  wallet
+  manual
+}
+
+enum ProductStatus {
+  draft
+  active
+  inactive
+  archived
+}
+
+enum VariantStatus {
+  active
+  inactive
+  out_of_stock
+  archived
+}
+
+enum InventoryAccountStatus {
+  available
+  assigned
+  delivered
+  full
+  replaced
+  disabled
+  expired
+}
+
+enum InventoryKeyStatus {
+  available
+  assigned
+  delivered
+  invalid
+  replaced
+  refunded
+}
+
+enum AccountType {
+  dedicated
+  shared
+}
+
+enum AllocationStatus {
+  active
+  expired
+  replaced
+  cancelled
+}
+
+enum SourceOrderStatus {
+  not_ordered
+  ordered
+  waiting_source
+  source_delivered
+  source_failed
+  claimed_warranty
+  cancelled
+}
+
+enum WarrantyCaseStatus {
+  open
+  waiting_admin
+  waiting_customer
+  processing
+  resolved
+  rejected
+  closed
+}
+
+enum WarrantyReason {
+  cannot_login
+  wrong_password
+  key_invalid
+  premium_missing
+  account_limited
+  need_instruction
+  other
+}
+
+enum WalletTransactionType {
+  deposit
+  purchase
+  refund
+  admin_adjustment
+}
+
+enum EmailType {
+  verify_email
+  reset_password
+  payment_confirmed
+  wallet_deposit_confirmed
+  delivery
+  refund
+  warranty_update
+}
+
+enum EmailStatus {
+  queued
+  sent
+  failed
+  cancelled
+}
+
+enum SupplySourceStatus {
+  active
+  inactive
+  blocked
+  archived
+}
+
+enum ContactChannel {
+  internal
+  telegram
+  discord
+  website
+  facebook
+  email
+  phone
+  other
+}
+
+enum AdminRole {
+  admin
+  super_admin
+}
+
+enum ActorType {
+  user
+  admin
+  system
+}
+
+// ----------------------------------------------------------------------------
+// Core
+// ----------------------------------------------------------------------------
+
+model User {
+  id            String   @id @default(cuid())
+  email         String   @unique
+  passwordHash  String
+  name          String?
+  walletBalance Int      @default(0)
+  isLocked      Boolean  @default(false)
+  createdAt     DateTime @default(now())
+  updatedAt     DateTime @updatedAt
+
+  orders        Order[]
+  payments      Payment[]
+  walletTxns    WalletTransaction[]
+  allocations   AccountAllocation[]
+  warrantyCases WarrantyCase[]
+  resetTokens   PasswordResetToken[]
+  emailLogs     EmailLog[]
+
+  @@map("users")
+}
+
+model PasswordResetToken {
+  id        String   @id @default(cuid())
+  userId    String
+  tokenHash String   @unique
+  expiresAt DateTime
+  usedAt    DateTime?
+  createdAt DateTime @default(now())
+
+  user User @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@index([userId])
+  @@map("password_reset_tokens")
+}
+
+model Admin {
+  id           String    @id @default(cuid())
+  email        String    @unique
+  passwordHash String
+  name         String?
+  role         AdminRole @default(admin)
+  isActive     Boolean   @default(true)
+  createdAt    DateTime  @default(now())
+  updatedAt    DateTime  @updatedAt
+
+  @@map("admins")
+}
+
+model Category {
+  id        String   @id @default(cuid())
+  name      String
+  slug      String   @unique
+  sortOrder Int      @default(0)
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  products Product[]
+
+  @@map("categories")
+}
+
+model Product {
+  id               String        @id @default(cuid())
+  categoryId       String?
+  name             String
+  slug             String        @unique
+  shortDescription String?
+  description      String?
+  imageFileId      String?
+  status           ProductStatus @default(draft)
+  sortOrder        Int           @default(0)
+  createdAt        DateTime      @default(now())
+  updatedAt        DateTime      @updatedAt
+
+  category   Category?        @relation(fields: [categoryId], references: [id])
+  variants   ProductVariant[]
+  orderItems OrderItem[]
+
+  @@index([status])
+  @@map("products")
+}
+
+model ProductVariant {
+  id                       String          @id @default(cuid())
+  productId                String
+  name                     String
+  slug                     String          @unique
+  price                    Int
+  costEstimate             Int?
+  durationDays             Int?
+  fulfillmentType          FulfillmentType
+  defaultSourceId          String?
+  warrantyDays             Int             @default(0)
+  estimatedDeliveryMinutes Int?
+  requiresCustomerInput    Boolean         @default(false)
+  customerInputSchema      Json?
+  status                   VariantStatus   @default(active)
+  createdAt                DateTime        @default(now())
+  updatedAt                DateTime        @updatedAt
+
+  product       Product            @relation(fields: [productId], references: [id], onDelete: Cascade)
+  defaultSource SupplySource?      @relation(fields: [defaultSourceId], references: [id])
+  orderItems    OrderItem[]
+  accounts      InventoryAccount[]
+  keys          InventoryKey[]
+
+  @@index([productId])
+  @@index([status])
+  @@map("product_variants")
+}
+
+model Order {
+  id                String            @id @default(cuid())
+  orderCode         String            @unique
+  userId            String
+  totalAmount       Int
+  paymentStatus     PaymentStatus     @default(pending)
+  fulfillmentStatus FulfillmentStatus @default(waiting_payment)
+  paymentMethod     PaymentProvider?
+  paidAt            DateTime?
+  deliveredAt       DateTime?
+  createdAt         DateTime          @default(now())
+  updatedAt         DateTime          @updatedAt
+
+  user          User           @relation(fields: [userId], references: [id])
+  items         OrderItem[]
+  payments      Payment[]
+  warrantyCases WarrantyCase[]
+  emailLogs     EmailLog[]
+
+  @@index([userId])
+  @@index([paymentStatus])
+  @@index([fulfillmentStatus])
+  @@map("orders")
+}
+
+model OrderItem {
+  id               String          @id @default(cuid())
+  orderId          String
+  productId        String
+  productVariantId String
+  quantity         Int             @default(1)
+  unitPrice        Int
+  totalPrice       Int
+  fulfillmentType  FulfillmentType
+  customerInput    Json?
+  status           FulfillmentStatus @default(waiting_payment)
+
+  order        Order              @relation(fields: [orderId], references: [id], onDelete: Cascade)
+  product      Product            @relation(fields: [productId], references: [id])
+  variant      ProductVariant     @relation(fields: [productVariantId], references: [id])
+  fulfillment  OrderFulfillment?
+  allocations  AccountAllocation[]
+  soldKey      InventoryKey?
+  warrantyCases WarrantyCase[]
+
+  @@index([orderId])
+  @@map("order_items")
+}
+
+model Payment {
+  id                    String          @id @default(cuid())
+  paymentCode           String          @unique
+  orderId               String?
+  userId                String
+  amount                Int
+  provider              PaymentProvider
+  // For deposits there is no order; "kind" disambiguates webhook handling.
+  isDeposit             Boolean         @default(false)
+  providerPaymentId     String?
+  providerTransactionId String?         @unique
+  status                PaymentStatus   @default(pending)
+  checkoutUrl           String?
+  qrCode                String?
+  rawWebhookPayload     Json?
+  paidAt                DateTime?
+  expiredAt             DateTime?
+  createdAt             DateTime        @default(now())
+  updatedAt             DateTime        @updatedAt
+
+  order Order? @relation(fields: [orderId], references: [id])
+  user  User   @relation(fields: [userId], references: [id])
+
+  @@index([orderId])
+  @@index([userId])
+  @@index([status])
+  @@map("payments")
+}
+
+model WalletTransaction {
+  id              String                @id @default(cuid())
+  userId          String
+  type            WalletTransactionType
+  amount          Int
+  balanceBefore   Int
+  balanceAfter    Int
+  referenceType   String?
+  referenceId     String?
+  description     String?
+  createdByAdminId String?
+  createdAt       DateTime              @default(now())
+
+  user User @relation(fields: [userId], references: [id])
+
+  @@index([userId])
+  @@map("wallet_transactions")
+}
+
+// ----------------------------------------------------------------------------
+// Source
+// ----------------------------------------------------------------------------
+
+model SupplySource {
+  id                  String             @id @default(cuid())
+  name                String
+  slug                String             @unique
+  contactName         String?
+  contactChannel      ContactChannel     @default(internal)
+  contactUrl          String?
+  websiteUrl          String?
+  telegramUsername    String?
+  discordUsername     String?
+  email               String?
+  phone               String?
+  defaultWarrantyDays Int                @default(0)
+  warrantyPolicy      String?
+  notes               String?
+  rating              Int?
+  status              SupplySourceStatus @default(active)
+  createdAt           DateTime           @default(now())
+  updatedAt           DateTime           @updatedAt
+
+  variants      ProductVariant[]
+  accounts      InventoryAccount[]
+  keys          InventoryKey[]
+  sourceOrders  SourceOrder[]
+  warrantyCases WarrantyCase[]
+
+  @@map("supply_sources")
+}
+
+model SourceOrder {
+  id                     String            @id @default(cuid())
+  sourceId               String
+  orderId                String?
+  orderItemId            String?
+  externalRef            String?
+  cost                   Int?
+  status                 SourceOrderStatus @default(not_ordered)
+  sourcePayloadEncrypted String?
+  proofFileId            String?
+  note                   String?
+  orderedAt              DateTime?
+  deliveredAt            DateTime?
+  createdAt              DateTime          @default(now())
+  updatedAt              DateTime          @updatedAt
+
+  source        SupplySource       @relation(fields: [sourceId], references: [id])
+  fulfillments  OrderFulfillment[]
+  warrantyCases WarrantyCase[]
+
+  @@index([sourceId])
+  @@index([status])
+  @@map("source_orders")
+}
+
+// ----------------------------------------------------------------------------
+// Inventory
+// ----------------------------------------------------------------------------
+
+model InventoryAccount {
+  id                    String                 @id @default(cuid())
+  productVariantId      String
+  sourceId              String?
+  username              String
+  passwordEncrypted     String
+  recoveryInfoEncrypted String?
+  noteEncrypted         String?
+  publicNote            String?
+  accountType           AccountType            @default(dedicated)
+  maxSlots              Int                    @default(1)
+  usedSlots             Int                    @default(0)
+  expiresAt             DateTime?
+  cost                  Int?
+  sourceRef             String?
+  status                InventoryAccountStatus @default(available)
+  createdAt             DateTime               @default(now())
+  updatedAt             DateTime               @updatedAt
+
+  variant      ProductVariant      @relation(fields: [productVariantId], references: [id])
+  source       SupplySource?       @relation(fields: [sourceId], references: [id])
+  allocations  AccountAllocation[]
+  fulfillments OrderFulfillment[]
+  warrantyCases WarrantyCase[]
+
+  @@index([productVariantId])
+  @@index([status])
+  @@map("inventory_accounts")
+}
+
+model AccountAllocation {
+  id                 String           @id @default(cuid())
+  inventoryAccountId String
+  userId             String
+  orderItemId        String
+  startsAt           DateTime         @default(now())
+  endsAt             DateTime?
+  status             AllocationStatus @default(active)
+  createdAt          DateTime         @default(now())
+  updatedAt          DateTime         @updatedAt
+
+  account   InventoryAccount @relation(fields: [inventoryAccountId], references: [id])
+  user      User             @relation(fields: [userId], references: [id])
+  orderItem OrderItem        @relation(fields: [orderItemId], references: [id])
+
+  @@index([inventoryAccountId])
+  @@index([orderItemId])
+  @@map("account_allocations")
+}
+
+model InventoryKey {
+  id               String             @id @default(cuid())
+  productVariantId String
+  sourceId         String?
+  keyEncrypted     String
+  publicNote       String?
+  cost             Int?
+  sourceRef        String?
+  status           InventoryKeyStatus @default(available)
+  soldOrderItemId  String?            @unique
+  deliveredAt      DateTime?
+  warrantyUntil    DateTime?
+  createdAt        DateTime           @default(now())
+  updatedAt        DateTime           @updatedAt
+
+  variant       ProductVariant     @relation(fields: [productVariantId], references: [id])
+  source        SupplySource?      @relation(fields: [sourceId], references: [id])
+  soldOrderItem OrderItem?         @relation(fields: [soldOrderItemId], references: [id])
+  fulfillments  OrderFulfillment[]
+  warrantyCases WarrantyCase[]
+
+  @@index([productVariantId])
+  @@index([status])
+  @@map("inventory_keys")
+}
+
+// ----------------------------------------------------------------------------
+// Fulfillment
+// ----------------------------------------------------------------------------
+
+model OrderFulfillment {
+  id                      String            @id @default(cuid())
+  orderItemId             String            @unique
+  fulfillmentType         FulfillmentType
+  status                  FulfillmentStatus @default(waiting_payment)
+  inventoryAccountId      String?
+  inventoryKeyId          String?
+  accountAllocationId     String?           @unique
+  sourceOrderId           String?
+  manualNote              String?
+  deliveredMessageEncrypted String?
+  deliveredAt             DateTime?
+  deliveredByAdminId      String?
+  emailSentAt             DateTime?
+  emailSentByAdminId      String?
+  createdAt               DateTime          @default(now())
+  updatedAt               DateTime          @updatedAt
+
+  orderItem        OrderItem          @relation(fields: [orderItemId], references: [id], onDelete: Cascade)
+  inventoryAccount InventoryAccount?  @relation(fields: [inventoryAccountId], references: [id])
+  inventoryKey     InventoryKey?      @relation(fields: [inventoryKeyId], references: [id])
+  sourceOrder      SourceOrder?       @relation(fields: [sourceOrderId], references: [id])
+
+  @@index([status])
+  @@map("order_fulfillments")
+}
+
+// ----------------------------------------------------------------------------
+// Support / logs / settings
+// ----------------------------------------------------------------------------
+
+model WarrantyCase {
+  id                 String             @id @default(cuid())
+  userId             String
+  orderId            String
+  orderItemId        String
+  sourceId           String?
+  sourceOrderId      String?
+  inventoryAccountId String?
+  inventoryKeyId     String?
+  reason             WarrantyReason
+  status             WarrantyCaseStatus @default(open)
+  adminNote          String?
+  createdAt          DateTime           @default(now())
+  updatedAt          DateTime           @updatedAt
+  closedAt           DateTime?
+
+  user             User              @relation(fields: [userId], references: [id])
+  order            Order             @relation(fields: [orderId], references: [id])
+  orderItem        OrderItem         @relation(fields: [orderItemId], references: [id])
+  source           SupplySource?     @relation(fields: [sourceId], references: [id])
+  sourceOrder      SourceOrder?      @relation(fields: [sourceOrderId], references: [id])
+  inventoryAccount InventoryAccount? @relation(fields: [inventoryAccountId], references: [id])
+  inventoryKey     InventoryKey?     @relation(fields: [inventoryKeyId], references: [id])
+  messages         WarrantyMessage[]
+
+  @@index([userId])
+  @@index([status])
+  @@map("warranty_cases")
+}
+
+model WarrantyMessage {
+  id             String    @id @default(cuid())
+  warrantyCaseId String
+  authorType     ActorType
+  authorId       String?
+  message        String
+  attachmentFileIds Json?
+  createdAt      DateTime  @default(now())
+
+  warrantyCase WarrantyCase @relation(fields: [warrantyCaseId], references: [id], onDelete: Cascade)
+
+  @@index([warrantyCaseId])
+  @@map("warranty_messages")
+}
+
+model FileObject {
+  id               String   @id @default(cuid())
+  ownerType        String?
+  ownerId          String?
+  fileName         String
+  mimeType         String
+  size             Int
+  storageDriver    String   @default("r2")
+  storageBucket    String?
+  storageKey       String
+  publicUrl        String?
+  uploadedByUserId String?
+  uploadedByAdminId String?
+  createdAt        DateTime @default(now())
+
+  @@map("files")
+}
+
+model EmailLog {
+  id                String      @id @default(cuid())
+  userId            String?
+  orderId           String?
+  type              EmailType
+  toEmail           String
+  subject           String
+  bodySnapshot      String?
+  status            EmailStatus @default(queued)
+  providerMessageId String?
+  errorMessage      String?
+  sentByAdminId     String?
+  // Idempotency guard so a payment/deposit confirmation is only ever sent once.
+  dedupeKey         String?     @unique
+  sentAt            DateTime?
+  createdAt         DateTime    @default(now())
+
+  user  User?  @relation(fields: [userId], references: [id])
+  order Order? @relation(fields: [orderId], references: [id])
+
+  @@index([type])
+  @@map("email_logs")
+}
+
+model AuditLog {
+  id         String    @id @default(cuid())
+  actorType  ActorType
+  actorId    String?
+  action     String
+  targetType String?
+  targetId   String?
+  metadata   Json?
+  ipAddress  String?
+  userAgent  String?
+  createdAt  DateTime  @default(now())
+
+  @@index([action])
+  @@index([targetType, targetId])
+  @@map("audit_logs")
+}
+
+model Setting {
+  key       String   @id
+  value     Json
+  updatedAt DateTime @updatedAt
+
+  @@map("settings")
+}

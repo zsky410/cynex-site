@@ -1,0 +1,68 @@
+import { Body, Controller, Delete, Get, Param, Patch, Post, Query, UseGuards } from "@nestjs/common";
+import { AdminAuthGuard } from "../../auth/guards";
+import { PrismaService } from "../../prisma/prisma.service";
+import { parseListQuery } from "../common/list-query";
+
+const FIELDS = [
+  "name",
+  "slug",
+  "contactName",
+  "contactChannel",
+  "contactUrl",
+  "websiteUrl",
+  "telegramUsername",
+  "discordUsername",
+  "email",
+  "phone",
+  "defaultWarrantyDays",
+  "warrantyPolicy",
+  "notes",
+  "rating",
+  "status",
+] as const;
+
+function pick(b: Record<string, any>): Record<string, any> {
+  const o: Record<string, any> = {};
+  for (const k of FIELDS) if (b[k] !== undefined) o[k] = b[k];
+  return o;
+}
+
+@UseGuards(AdminAuthGuard)
+@Controller("admin/supply-sources")
+export class AdminSourcesController {
+  constructor(private readonly prisma: PrismaService) {}
+
+  @Get()
+  async list(@Query() q: Record<string, any>) {
+    const { skip, take, orderBy, filter, ids } = parseListQuery(q);
+    const where: any = {};
+    if (ids) where.id = { in: ids };
+    if (filter.status) where.status = filter.status;
+    if (filter.q) where.name = { contains: String(filter.q), mode: "insensitive" };
+    const [data, total] = await Promise.all([
+      this.prisma.supplySource.findMany({ where, skip, take, orderBy }),
+      this.prisma.supplySource.count({ where }),
+    ]);
+    return { data, total };
+  }
+
+  @Get(":id")
+  async getOne(@Param("id") id: string) {
+    return { data: await this.prisma.supplySource.findUniqueOrThrow({ where: { id } }) };
+  }
+
+  @Post()
+  async create(@Body() b: Record<string, any>) {
+    return { data: await this.prisma.supplySource.create({ data: pick(b) as any }) };
+  }
+
+  @Patch(":id")
+  async update(@Param("id") id: string, @Body() b: Record<string, any>) {
+    return { data: await this.prisma.supplySource.update({ where: { id }, data: pick(b) }) };
+  }
+
+  @Delete(":id")
+  async remove(@Param("id") id: string) {
+    return { data: await this.prisma.supplySource.update({ where: { id }, data: { status: "archived" } }) };
+  }
+}

@@ -1,0 +1,37 @@
+# deps
+node_modules/
+.pnpm-store/
+
+# build
+dist/
+.next/
+out/
+build/
+*.tsbuildinfo
+
+# turbo
+.turbo/
+
+# env
+.env
+.env.local
+.env.*.local
+
+# prisma
+packages/db/prisma/*.db
+
+# logs
+*.log
+npm-debug.log*
+
+# misc
+.DS_Store
+coverage/
+backups/
+Thumbs.db
+
+# cursor / IDE (keep .cursor/rules for project conventions)
+.cursor/settings.json
+.cursor/plans/
+.vscode/
+.idea/
