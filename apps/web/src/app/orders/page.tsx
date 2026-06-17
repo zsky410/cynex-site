@@ -6,7 +6,6 @@ import { useRouter } from "next/navigation";
 import { ArrowRight } from "lucide-react";
 import { apiFetch, getToken, ApiError } from "@/lib/api";
 import { EmptyState } from "@/components/ui/empty-state";
-import { Panel } from "@/components/ui/panel";
 import { SectionHeader } from "@/components/ui/section-header";
 import { StatusPill } from "@/components/ui/status-pill";
 import { formatVnd } from "@/lib/utils";
