@@ -205,6 +205,13 @@ export const VariantStatus = {
 } as const;
 export type VariantStatus = (typeof VariantStatus)[keyof typeof VariantStatus];
 
+export const ActorType = {
+  user: "user",
+  admin: "admin",
+  system: "system",
+} as const;
+export type ActorType = (typeof ActorType)[keyof typeof ActorType];
+
 // Audit actions that MUST be logged (PRD 15.4).
 export const AuditAction = {
   ADMIN_LOGIN: "ADMIN_LOGIN",
@@ -225,5 +232,6 @@ export const AuditAction = {
   ADMIN_REFUND_ORDER: "ADMIN_REFUND_ORDER",
   ADMIN_ADJUST_WALLET: "ADMIN_ADJUST_WALLET",
   ADMIN_UPDATE_WARRANTY_CASE: "ADMIN_UPDATE_WARRANTY_CASE",
+  ADMIN_REPLACE_WARRANTY_ITEM: "ADMIN_REPLACE_WARRANTY_ITEM",
 } as const;
 export type AuditAction = (typeof AuditAction)[keyof typeof AuditAction];

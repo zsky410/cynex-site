@@ -255,6 +255,52 @@ function FulfillmentPanel() {
   );
 }
 
+function RefundOrderBox() {
+  const order = useRecordContext<any>();
+  const notify = useNotify();
+  const refresh = useRefresh();
+  const [reason, setReason] = useState("");
+  const [busy, setBusy] = useState(false);
+
+  if (!order?.id || order.paymentStatus !== "paid") return null;
+
+  async function submit() {
+    if (!window.confirm("Hoàn tiền đơn này vào ví khách hàng?")) return;
+    setBusy(true);
+    try {
+      await api(`/admin/orders/${order.id}/refund`, {
+        method: "POST",
+        body: JSON.stringify({ reason }),
+      });
+      setReason("");
+      notify("Đã hoàn tiền đơn hàng", { type: "success" });
+      refresh();
+    } catch (e: any) {
+      notify(e.message ?? "Lỗi hoàn tiền", { type: "error" });
+    } finally {
+      setBusy(false);
+    }
+  }
+
+  return (
+    <div style={{ border: "1px solid #e2e8f0", borderRadius: 8, padding: 16, marginBottom: 12 }}>
+      <p style={{ marginTop: 0, fontWeight: 600 }}>Hoàn tiền</p>
+      <div style={{ display: "flex", gap: 8, alignItems: "flex-start" }}>
+        <textarea
+          placeholder="Lý do hoàn tiền (khuyến nghị)"
+          value={reason}
+          onChange={(e) => setReason(e.target.value)}
+          rows={2}
+          style={{ flex: 1 }}
+        />
+        <button disabled={busy} onClick={submit}>
+          Hoàn tiền vào ví
+        </button>
+      </div>
+    </div>
+  );
+}
+
 export const OrderShow = () => (
   <Show>
     <SimpleShowLayout>
@@ -265,6 +311,7 @@ export const OrderShow = () => (
       <TextField source="fulfillmentStatus" />
       <DateField source="paidAt" showTime />
       <DateField source="deliveredAt" showTime />
+      <RefundOrderBox />
       <FulfillmentPanel />
     </SimpleShowLayout>
   </Show>

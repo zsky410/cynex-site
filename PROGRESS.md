@@ -4,7 +4,7 @@
 > `.cursor/plans/cynex_mvp_implementation_5a2af0fe.plan.md` (do NOT edit it).
 > This file tracks what is DONE vs PENDING and how to continue.
 
-Last updated: after **Phase 4** completed and verified.
+Last updated: after Phase 5 replacement flow, alert jobs, Sentry/bootstrap wrappers, backup docs, and full warranty UI were completed and verified.
 
 ## Status summary
 
@@ -15,9 +15,9 @@ Last updated: after **Phase 4** completed and verified.
 | Phase 2 | Wallet (read, deposit, pay-with-wallet, admin adjustment, web + admin UI) | ✅ DONE & verified |
 | Phase 3 | Source & inventory (sources, source-orders, inventory accounts/keys with AES-256-GCM, admin CRUD + UI) | ✅ DONE & verified |
 | Phase 4 | Manual fulfillment (assign account/key, delivery email, user reveal secret) | ✅ DONE & verified |
-| Phase 5 | Warranty / logs / security / ops (warranty, R2 files, audit log, refund, dashboard, cron, Sentry, backup) | ⏳ NOT STARTED |
+| Phase 5 | Warranty / logs / security / ops (warranty, R2 files, audit log, refund, dashboard, cron, Sentry, backup) | ✅ DONE & verified |
 
-**Next immediate step: Phase 5, task T5.1 (per the plan; NOT started yet).**
+**Next immediate step:** MVP phases 0-5 are complete. Remaining work is post-MVP polish: richer audit coverage, production provider keys, and operational hardening beyond the baseline shipped here.
 
 ---
 
@@ -57,7 +57,8 @@ pnpm -F @cynex/worker exec tsx src/main.ts
 ```bash
 pnpm typecheck                 # 9/9 packages
 pnpm -F @cynex/shared test     # 4/4 (AES-256-GCM crypto)
-pnpm -F @cynex/api test        # 4/4 (payment + deposit idempotency, shared-slot + variant-match)
+pnpm -F @cynex/api test        # 25/25 (payment, fulfillment, warranty, alerts, file upload, audit/reveal, refund, log viewers)
+pnpm build                     # full monorepo build
 ```
 
 ### Seed credentials
@@ -80,6 +81,8 @@ pnpm -F @cynex/api test        # 4/4 (payment + deposit idempotency, shared-slot
 4. **payOS / Resend / R2 keys are NOT set** in `.env` (placeholders). payOS link creation
    and real email sending require real keys. Idempotency/credit logic is covered by tests
    that call the service directly (see `apps/api/test/payment-idempotency.test.ts`).
+   File upload now works without R2 too: API stores bytes in local `.data/uploads` and still
+   writes `files` metadata. When R2 creds are provided, the same API switches to R2 automatically.
 5. **pnpm overrides** in root `package.json`: `ioredis@5.10.1` (match BullMQ), and
    `@types/react`/`@types/react-dom` pinned to v19 (admin also moved to React 19).
 6. **`AuthModule` is `@Global`** so guards (`JwtAuthGuard`, `AdminAuthGuard`) + `TokensService`
@@ -89,8 +92,8 @@ pnpm -F @cynex/api test        # 4/4 (payment + deposit idempotency, shared-slot
    getOne/create/update/delete → `{ data }`. Helper: `apps/api/src/admin/common/list-query.ts`.
 8. **Secrets at rest:** inventory account password/recovery/note and key + source payload are
    encrypted via `@cynex/shared` `encrypt()`. Admin list/getOne return MASKED data
-   (`hasPassword`, `hasKey`, …). A decrypt/"view secret" endpoint with audit log is a
-   **Phase 5** task (T5.x ADMIN_VIEW_SECRET) — not built yet.
+   (`hasPassword`, `hasKey`, …). Reveal happens only via explicit admin endpoints and now
+   writes `ADMIN_VIEW_SECRET` audit rows.
 9. **Soft deletes:** admin delete sets status to archived/disabled/invalid/cancelled rather
    than hard-deleting (preserves order history).
 
@@ -131,6 +134,16 @@ pnpm -F @cynex/api test        # 4/4 (payment + deposit idempotency, shared-slot
 - `admin/*` — admin auth; CRUD for products, product-variants, supply-sources, source-orders,
   inventory-accounts (encrypted), inventory-keys (encrypted); orders list/show; users
   list/show/edit + wallet-adjustment
+- `warranty/*` — user warranty case create/list/detail + reply (`/warranty-cases`,
+  `/warranty-cases/:id`, `/warranty-cases/:id/messages`) with ownership + delivered-item checks
+- `admin/warranty/*` — admin warranty list/detail/reply/update/replace (`/admin/warranty-cases`,
+  `/admin/warranty-cases/:id`, `/admin/warranty-cases/:id/messages`,
+  `/admin/warranty-cases/:id/replace-account`, `/admin/warranty-cases/:id/replace-key`) with source/order/inventory linking
+- `audit/*` + `admin/inventory/reveal.controller.ts` — `ADMIN_VIEW_SECRET` audit rows and
+  reveal endpoints for inventory accounts/keys
+- `admin/orders/admin-refund.*` — refund-to-wallet flow (`POST /admin/orders/:id/refund`)
+- `admin/logs/*` — admin email-log + audit-log viewer endpoints
+- `admin/dashboard/*` — `GET /admin/dashboard` pending/processing/delivered/revenue/stock metrics
 - `admin/orders/admin-fulfillment.controller.ts` + `fulfillment.service.ts` — Phase 4 manual
   fulfillment: `POST /admin/fulfillments/:id/{mark-processing,assign-account,assign-key,manual,
   preview-delivery-email,send-delivery-email}`. Atomic slot logic (conditional `updateMany` guards
@@ -138,6 +151,7 @@ pnpm -F @cynex/api test        # 4/4 (payment + deposit idempotency, shared-slot
   `leastAdvancedFulfillment`. `admin/orders/delivery-template.ts` mirrors the worker email for preview.
 - `orders/orders.service.ts` `getByCode` now masks `deliveredMessageEncrypted` and reveals the
   decrypted `deliveredMessage` to the owner ONLY once the item is `delivered`.
+- `sentry.ts` — lightweight Sentry/bootstrap logger for API uncaught exceptions (`SENTRY_DSN` aware)
 - `test/payment-idempotency.test.ts` — order + deposit idempotency
 - `test/fulfillment.test.ts` — shared-account capacity (no oversell, flips to `full`) + wrong-variant reject
 
@@ -147,16 +161,20 @@ pnpm -F @cynex/api test        # 4/4 (payment + deposit idempotency, shared-slot
 - `jobs/` — payment-confirmed, wallet-deposit, reset-password, **delivery** handlers. `send-delivery.ts`
   sends the (secret-free) notification then, ONLY on send success, flips fulfillment + inventory +
   order to `delivered` (failed send leaves `assigned` for retry/resend).
+- `jobs/send-refund.ts` — refund email handler; writes `email_logs` type `refund`
+- `jobs/notify-admin-pending.ts`, `jobs/daily-stock-alert.ts`, `scheduler.ts` — repeatable alerts queue registration + summary logging
+- `sentry.ts` — lightweight Sentry/bootstrap logger for worker uncaught exceptions (`SENTRY_DSN` aware)
 
 ### apps/web (Next.js)
 - Pages: `/`, `/products`, `/products/[slug]` (+ `BuyPanel`), `/login`, `/register`,
   `/forgot-password`, `/reset-password`, `/checkout/[orderCode]` (+ return/cancel),
-  `/orders`, `/orders/[orderCode]`, `/wallet`
+  `/orders`, `/orders/[orderCode]`, `/orders/[orderCode]/warranty`, `/wallet`, `/warranty`
 - `lib/api.ts` (token + fetch), `lib/utils.ts`, `lib/status.ts`
 
 ### apps/admin (React Admin + MUI)
 - `dataProvider.ts`, `authProvider.ts`, resources: products, variants, orders, users,
-  sources, sourceOrders, inventory (accounts + keys)
+  sources, sourceOrders, inventory (accounts + keys, now with reveal buttons), warranty cases,
+  email logs, audit logs; order show now also has a refund box; dashboard + warranty replace box are live
 
 ---
 
@@ -186,22 +204,111 @@ send → worker delivers → user reveals secret). Key decisions/deviations:
    enqueued for real; left as-is, out of Phase 4 scope.)
 7. **Reveal (T4.10):** `GET /orders/:orderCode` masks the ciphertext and returns decrypted
    `deliveredMessage` to the owner only when the item is `delivered`. Web page already renders it.
-   No audit row written yet — `ADMIN_VIEW_SECRET`/access audit is a Phase 5 task.
+   Audit coverage for admin secret reveal was completed in Phase 5.
 8. **Admin UI (T4.12):** `apps/admin/src/resources/orders.tsx` OrderShow has a per-item panel with
    account/key dropdowns (fetched filtered by variant + `status=available`), manual-note box, and
    preview/send buttons. Plain `fetch` (not the dataProvider) since these are RPC-style actions.
 
-## PENDING — Phase 5: Warranty / logs / security / ops (T5.1–T5.17)
+## DONE — Phase 5: Warranty / logs / security / ops (T5.1–T5.17)
 
-Tables already exist (`warranty_cases`, `warranty_messages`, `files`, `audit_logs`, `settings`).
-To build (high level): R2 storage service + file upload; user warranty create/list/messages;
-admin warranty management + replace flow; **audit log service** + `ADMIN_VIEW_SECRET` reveal
-endpoint for inventory secrets (decrypt + write `audit_logs`); admin refund-to-wallet
-(`WalletService.credit(..., 'refund')` already exists) + refund email (`refundEmail` template
-exists, add worker handler + `EMAIL_JOB.refund`); email/audit log viewer resources in admin;
-dashboard stats; cron alerts (worker `alerts` queue + scheduler, `ALERT_JOB.*` already defined);
-Sentry init (api + worker, `SENTRY_DSN` in env); pg backup/restore scripts + `docs/RESTORE.md`;
-web warranty UI (`/orders/[orderCode]/warranty` link already present in order detail).
+Tables already existed (`warranty_cases`, `warranty_messages`, `files`, `audit_logs`, `settings`).
+The full Phase 5 feature set is now implemented:
+
+1. **T5.5/T5.17 user warranty flow:**
+   - `apps/api/src/warranty/warranty.service.ts` — create/list/detail + user reply logic.
+   - `apps/api/src/warranty/warranty.controller.ts` — `POST /warranty-cases`, `GET /warranty-cases`,
+     `GET /warranty-cases/:id`, `POST /warranty-cases/:id/messages`.
+   - `apps/api/test/warranty.test.ts` — verifies:
+     - own delivered item can create an `open` case with first message
+     - undelivered item is rejected
+     - list/detail are owner-scoped
+     - owner can append a new message
+   - `packages/shared/src/dto/warranty.ts` now includes both create-case and create-message DTOs.
+   - `apps/web/src/app/orders/[orderCode]/warranty/page.tsx` creates cases from a delivered order item.
+   - `apps/web/src/app/warranty/page.tsx` lists user cases, shows message history, and lets the user reply with more attachments.
+
+2. **T5.6/T5.7 admin warranty handling + replace flow:**
+- `apps/api/src/admin/warranty/admin-warranty.service.ts` — admin list/detail/reply/update logic.
+   - `apps/api/src/admin/warranty/admin-warranty.controller.ts` — `GET /admin/warranty-cases`,
+     `GET /admin/warranty-cases/:id`, `POST /admin/warranty-cases/:id/messages`,
+     `PATCH /admin/warranty-cases/:id`, `POST /admin/warranty-cases/:id/replace-account`,
+     `POST /admin/warranty-cases/:id/replace-key`.
+   - `apps/api/src/warranty/replace.ts` — replacement logic that marks the old allocation/key as `replaced`,
+     switches fulfillment to the new account/key, refreshes the delivered secret, and writes audit rows.
+   - `apps/api/test/admin-warranty.test.ts` — verifies:
+     - admin can list and inspect warranty cases with user/order context
+     - admin reply appends a message and moves the case to `waiting_customer`
+     - admin can update status/adminNote and link source/source-order/account/key
+     - admin can replace a warranty account and replace a warranty key end-to-end
+- `apps/admin/src/resources/warranty.tsx` + `apps/admin/src/App.tsx` now expose a React Admin
+  warranty resource with list/show/edit plus a reply box and replace account/key actions.
+
+3. **T5.4 file upload/storage slice:**
+   - `apps/api/src/files/files.module.ts`, `files.service.ts`, `files.controller.ts`
+     expose:
+     - `POST /files/upload`, `GET /files/:id/content` for authenticated users
+     - `POST /admin/files/upload`, `GET /admin/files/:id/content` for admins
+   - Storage behavior:
+     - if `R2_ACCESS_KEY_ID`/`R2_SECRET_ACCESS_KEY`/`R2_BUCKET` and endpoint info exist, uploads go to R2
+     - otherwise uploads fall back to local `.data/uploads` so dev/test do not require cloud keys
+   - `apps/api/test/files.test.ts` verifies metadata creation, owner/admin read access, local fallback content, and MIME rejection.
+   - `apps/web/src/lib/api.ts` now supports multipart upload via `apiUploadFile()` and avoids forcing JSON headers on `FormData`.
+   - `apps/web/src/app/orders/[orderCode]/warranty/page.tsx` now exists, so the order-detail warranty link is no longer broken; users can create a warranty/support case and attach image/PDF/text files.
+
+4. **T5.8/T5.9 audit + view-secret slice:**
+   - `apps/api/src/audit/audit.service.ts` — reusable audit writer for admin/system actions.
+   - `apps/api/src/admin/inventory/admin-reveal.service.ts` +
+     `apps/api/src/admin/inventory/reveal.controller.ts` — `POST /admin/inventory-accounts/:id/reveal`
+     and `POST /admin/inventory-keys/:id/reveal`.
+   - `apps/api/test/admin-secret-reveal.test.ts` — verifies:
+     - inventory account reveal decrypts secrets and writes `ADMIN_VIEW_SECRET`
+     - inventory key reveal decrypts secret and writes `ADMIN_VIEW_SECRET`
+   - `apps/api/test/fulfillment.test.ts` now also verifies `assignAccount(..., adminId)` writes
+     `ADMIN_ASSIGN_ACCOUNT`.
+   - Audit logging is now wired for:
+     - inventory secret reveal
+     - assign account
+     - assign key
+     - send delivery email
+     - wallet adjustment
+     - admin warranty reply/update
+   - `apps/admin/src/resources/inventory.tsx` now has minimal "Reveal" buttons in account/key lists.
+
+5. **T5.10/T5.11 refund flow:**
+   - `apps/api/src/admin/orders/admin-refund.service.ts` +
+     `apps/api/src/admin/orders/admin-refund.controller.ts` — `POST /admin/orders/:id/refund`.
+   - Refund behavior now:
+     - credits the user's wallet with a `wallet_transactions.type = refund` row
+     - marks order / order_items / order_fulfillments / paid payments as `refunded`
+     - enqueues `EMAIL_JOB.refund`
+     - writes `ADMIN_REFUND_ORDER` audit
+   - `apps/worker/src/jobs/send-refund.ts` sends the refund email via existing `deliverEmail` flow
+     and records `email_logs.type = refund`.
+   - `apps/api/test/admin-refund.test.ts` verifies refund credit/status/queue/audit behavior.
+   - `apps/api/test/refund-email-job.test.ts` verifies the worker handler writes a sent `email_logs` row.
+   - `apps/admin/src/resources/orders.tsx` now has a minimal refund box on paid orders.
+
+6. **T5.12/T5.13 admin viewers + dashboard:**
+   - `apps/api/src/admin/logs/admin-email-logs.controller.ts` — `GET /admin/email-logs`,
+     `GET /admin/email-logs/:id`.
+   - `apps/api/src/admin/logs/admin-audit-logs.controller.ts` — `GET /admin/audit-logs`,
+     `GET /admin/audit-logs/:id`.
+   - `apps/api/test/admin-logs.test.ts` — verifies:
+     - email-log viewer can list by type and return detail with user/order context
+     - audit-log viewer can list by action and return detail
+   - `apps/api/src/admin/dashboard/dashboard.controller.ts` + `apps/api/test/admin-dashboard.test.ts`
+     provide and verify pending/processing/delivered-today/revenue/stock counts.
+   - `apps/admin/src/Dashboard.tsx` renders those cards on the admin home screen.
+   - `apps/admin/src/resources/logs.tsx` + `apps/admin/src/App.tsx` now expose read-only React Admin
+     resources for email logs and audit logs.
+
+7. **T5.14/T5.15/T5.16 ops baseline:**
+   - `apps/worker/src/jobs/notify-admin-pending.ts`, `apps/worker/src/jobs/daily-stock-alert.ts`,
+     `apps/worker/src/scheduler.ts`, `apps/api/test/alert-jobs.test.ts` — alert handlers are registered,
+     schedulers are upserted on worker boot, and manual execution is verified.
+   - `apps/api/src/sentry.ts`, `apps/worker/src/sentry.ts` — lightweight Sentry/bootstrap logging tied to `SENTRY_DSN`
+     for uncaught exceptions and unhandled rejections.
+   - `scripts/pg-backup.sh` + `docs/RESTORE.md` — dated PostgreSQL custom dumps plus restore instructions.
 
 ---
 

@@ -9,3 +9,9 @@ export const CreateWarrantyCaseSchema = z.object({
   attachmentFileIds: z.array(z.string()).max(10).optional(),
 });
 export type CreateWarrantyCaseDto = z.infer<typeof CreateWarrantyCaseSchema>;
+
+export const CreateWarrantyMessageSchema = z.object({
+  message: z.string().min(1).max(4000),
+  attachmentFileIds: z.array(z.string()).max(10).optional(),
+});
+export type CreateWarrantyMessageDto = z.infer<typeof CreateWarrantyMessageSchema>;

@@ -2,8 +2,14 @@ import { Worker } from "bullmq";
 import { QUEUE } from "@cynex/shared";
 import { connection } from "./redis";
 import { jobHandlers } from "./handlers";
+import { registerAlertSchedulers } from "./scheduler";
+import { captureWorkerException, initWorkerSentry } from "./sentry";
 // Side-effect imports: each phase registers its handlers on import.
 import "./jobs/index";
+
+initWorkerSentry(process.env.SENTRY_DSN);
+process.on("uncaughtException", captureWorkerException);
+process.on("unhandledRejection", captureWorkerException);
 
 function startWorker(queueName: string): Worker {
   const worker = new Worker(
@@ -25,11 +31,24 @@ function startWorker(queueName: string): Worker {
 }
 
 const workers = [startWorker(QUEUE.email), startWorker(QUEUE.alerts)];
+const schedulerQueuePromise = registerAlertSchedulers()
+  .then((queue) => {
+    console.log("[worker] alert schedulers registered");
+    return queue;
+  })
+  .catch((error) => {
+    console.error("[worker] failed to register alert schedulers:", error.message);
+    throw error;
+  });
 
 connection.on("connect", () => console.log("[worker] connected to redis"));
 console.log(`[worker] started, queues: ${Object.values(QUEUE).join(", ")}`);
 
 async function shutdown(): Promise<void> {
+  const schedulerQueue = await schedulerQueuePromise.catch(() => null);
+  if (schedulerQueue) {
+    await schedulerQueue.close();
+  }
   await Promise.all(workers.map((w) => w.close()));
   await connection.quit();
   process.exit(0);

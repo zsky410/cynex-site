@@ -11,6 +11,8 @@ import { OrdersModule } from "./orders/orders.module";
 import { WalletModule } from "./wallet/wallet.module";
 import { PaymentModule } from "./payment/payment.module";
 import { AdminModule } from "./admin/admin.module";
+import { FilesModule } from "./files/files.module";
+import { WarrantyModule } from "./warranty/warranty.module";
 
 // Feature modules are registered here as each phase lands.
 @Module({
@@ -30,7 +32,9 @@ import { AdminModule } from "./admin/admin.module";
     CatalogModule,
     OrdersModule,
     PaymentModule,
+    FilesModule,
     AdminModule,
+    WarrantyModule,
   ],
   controllers: [HealthController],
 })

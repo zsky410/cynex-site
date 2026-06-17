@@ -1,8 +1,9 @@
 import { test } from "node:test";
 import assert from "node:assert/strict";
 import { PrismaClient } from "@cynex/db";
-import { encrypt } from "@cynex/shared";
+import { AuditAction, encrypt } from "@cynex/shared";
 import { FulfillmentService } from "../src/admin/orders/fulfillment.service";
+import { AuditService } from "../src/audit/audit.service";
 
 const queueStub = { enqueueEmail: async () => {} } as any;
 
@@ -108,6 +109,50 @@ test("assigning an account of the wrong variant is rejected", async () => {
   const fresh = await prisma.inventoryAccount.findUniqueOrThrow({ where: { id: account.id } });
   assert.equal(fresh.status, "available");
 
+  await prisma.orderFulfillment.deleteMany({ where: { orderItemId: a.item.id } });
+  await prisma.orderItem.deleteMany({ where: { orderId: a.orderId } });
+  await prisma.order.delete({ where: { id: a.orderId } });
+  await prisma.inventoryAccount.delete({ where: { id: account.id } });
+  await prisma.user.delete({ where: { id: user.id } });
+  await prisma.$disconnect();
+});
+
+test("assigning an account with an admin id writes an ADMIN_ASSIGN_ACCOUNT audit row", async () => {
+  const prisma = new PrismaClient();
+  const audit = new AuditService(prisma as any);
+  const svc = new FulfillmentService(prisma as any, queueStub, audit);
+
+  const admin = await prisma.admin.findFirstOrThrow();
+  const user = await prisma.user.create({
+    data: { email: `ffa-${Date.now()}@test.com`, passwordHash: "x" },
+  });
+  const variant = await prisma.productVariant.findFirstOrThrow();
+  const account = await prisma.inventoryAccount.create({
+    data: {
+      productVariantId: variant.id,
+      username: `audit-shared-${Date.now()}`,
+      passwordEncrypted: encrypt("secret"),
+      accountType: "dedicated",
+      status: "available",
+    },
+  });
+  const a = await makeOrderItem(prisma, user.id, variant.id);
+
+  await svc.assignAccount(a.fulfillmentId, account.id, admin.id);
+
+  const log = await prisma.auditLog.findFirstOrThrow({
+    where: {
+      actorId: admin.id,
+      action: AuditAction.ADMIN_ASSIGN_ACCOUNT,
+      targetType: "order_fulfillment",
+      targetId: a.fulfillmentId,
+    },
+    orderBy: { createdAt: "desc" },
+  });
+  assert.equal((log.metadata as any).inventoryAccountId, account.id);
+
+  await prisma.auditLog.deleteMany({ where: { targetId: a.fulfillmentId } });
+  await prisma.accountAllocation.deleteMany({ where: { inventoryAccountId: account.id } });
   await prisma.orderFulfillment.deleteMany({ where: { orderItemId: a.item.id } });
   await prisma.orderItem.deleteMany({ where: { orderId: a.orderId } });
   await prisma.order.delete({ where: { id: a.orderId } });

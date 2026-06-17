@@ -7,6 +7,9 @@ import StorefrontIcon from "@mui/icons-material/Storefront";
 import ShoppingCartIcon from "@mui/icons-material/ShoppingCart";
 import VpnKeyIcon from "@mui/icons-material/VpnKey";
 import AccountBoxIcon from "@mui/icons-material/AccountBox";
+import ReportProblemIcon from "@mui/icons-material/ReportProblem";
+import MailOutlineIcon from "@mui/icons-material/MailOutline";
+import HistoryIcon from "@mui/icons-material/History";
 import { dataProvider } from "./dataProvider";
 import { authProvider } from "./authProvider";
 import { ProductList, ProductEdit, ProductCreate } from "./resources/products";
@@ -16,10 +19,13 @@ import { UserList, UserShow, UserEdit } from "./resources/users";
 import { SourceList, SourceEdit, SourceCreate } from "./resources/sources";
 import { SourceOrderList, SourceOrderEdit, SourceOrderCreate } from "./resources/sourceOrders";
 import { AccountList, AccountEdit, AccountCreate, KeyList, KeyEdit, KeyCreate } from "./resources/inventory";
+import { WarrantyList, WarrantyShow, WarrantyEdit } from "./resources/warranty";
+import { AuditLogList, AuditLogShow, EmailLogList, EmailLogShow } from "./resources/logs";
+import Dashboard from "./Dashboard";
 
 export default function App() {
   return (
-    <Admin dataProvider={dataProvider} authProvider={authProvider} title="Cynex Admin">
+    <Admin dataProvider={dataProvider} authProvider={authProvider} dashboard={Dashboard} title="Cynex Admin">
       <Resource
         name="products"
         list={ProductList}
@@ -36,6 +42,28 @@ export default function App() {
         icon={LayersIcon}
       />
       <Resource name="orders" list={OrderList} show={OrderShow} icon={ReceiptIcon} />
+      <Resource
+        name="email-logs"
+        options={{ label: "Email logs" }}
+        list={EmailLogList}
+        show={EmailLogShow}
+        icon={MailOutlineIcon}
+      />
+      <Resource
+        name="audit-logs"
+        options={{ label: "Audit logs" }}
+        list={AuditLogList}
+        show={AuditLogShow}
+        icon={HistoryIcon}
+      />
+      <Resource
+        name="warranty-cases"
+        options={{ label: "Warranty" }}
+        list={WarrantyList}
+        show={WarrantyShow}
+        edit={WarrantyEdit}
+        icon={ReportProblemIcon}
+      />
       <Resource name="users" list={UserList} show={UserShow} edit={UserEdit} icon={PeopleIcon} />
       <Resource
         name="supply-sources"

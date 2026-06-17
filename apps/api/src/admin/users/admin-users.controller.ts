@@ -14,6 +14,8 @@ import { CurrentAdmin, AuthAdmin } from "../../common/current-user.decorator";
 import { PrismaService } from "../../prisma/prisma.service";
 import { WalletService } from "../../wallet/wallet.service";
 import { parseListQuery } from "../common/list-query";
+import { AuditService } from "../../audit/audit.service";
+import { AuditAction } from "@cynex/shared";
 
 @UseGuards(AdminAuthGuard)
 @Controller("admin/users")
@@ -21,6 +23,7 @@ export class AdminUsersController {
   constructor(
     private readonly prisma: PrismaService,
     private readonly wallet: WalletService,
+    private readonly audit: AuditService,
   ) {}
 
   @Get()
@@ -95,6 +98,11 @@ export class AdminUsersController {
         referenceType: "admin_adjustment",
       }),
     );
+    await this.audit.logAdminAction(admin.id, AuditAction.ADMIN_ADJUST_WALLET, "user", id, {
+      amount,
+      reason: body.reason,
+      balanceAfter,
+    });
     return { data: { id, balanceAfter } };
   }
 }

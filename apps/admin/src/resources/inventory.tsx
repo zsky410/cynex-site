@@ -1,3 +1,4 @@
+import { useState } from "react";
 import {
   List,
   Datagrid,
@@ -14,7 +15,12 @@ import {
   PasswordInput,
   ReferenceInput,
   required,
+  useNotify,
+  useRecordContext,
 } from "react-admin";
+import { Button } from "@mui/material";
+import { API_URL } from "../config";
+import { getToken } from "../authProvider";
 
 const ACC_STATUS = [
   "available", "assigned", "delivered", "full", "replaced", "disabled", "expired",
@@ -23,6 +29,83 @@ const ACC_TYPE = ["dedicated", "shared"].map((id) => ({ id, name: id }));
 const KEY_STATUS = [
   "available", "assigned", "delivered", "invalid", "replaced", "refunded",
 ].map((id) => ({ id, name: id }));
+
+async function reveal(path: string): Promise<any> {
+  const res = await fetch(`${API_URL}${path}`, {
+    method: "POST",
+    headers: {
+      "Content-Type": "application/json",
+      Authorization: `Bearer ${getToken()}`,
+    },
+  });
+  const body = await res.json().catch(() => ({}));
+  if (!res.ok) throw new Error(body.message ?? res.statusText);
+  return body.data;
+}
+
+function RevealAccountButton() {
+  const record = useRecordContext<any>();
+  const notify = useNotify();
+  const [secret, setSecret] = useState<string | null>(null);
+  const [busy, setBusy] = useState(false);
+
+  if (!record?.id) return null;
+
+  async function onReveal() {
+    setBusy(true);
+    try {
+      const data = await reveal(`/admin/inventory-accounts/${record.id}/reveal`);
+      setSecret([
+        `Password: ${data.password}`,
+        data.recoveryInfo ? `Recovery: ${data.recoveryInfo}` : null,
+        data.privateNote ? `Private note: ${data.privateNote}` : null,
+      ].filter(Boolean).join("\n"));
+    } catch (e) {
+      notify((e as Error).message, { type: "error" });
+    } finally {
+      setBusy(false);
+    }
+  }
+
+  return (
+    <div>
+      <Button size="small" onClick={onReveal} disabled={busy}>
+        Reveal
+      </Button>
+      {secret ? <pre style={{ margin: 0, whiteSpace: "pre-wrap", maxWidth: 320 }}>{secret}</pre> : null}
+    </div>
+  );
+}
+
+function RevealKeyButton() {
+  const record = useRecordContext<any>();
+  const notify = useNotify();
+  const [secret, setSecret] = useState<string | null>(null);
+  const [busy, setBusy] = useState(false);
+
+  if (!record?.id) return null;
+
+  async function onReveal() {
+    setBusy(true);
+    try {
+      const data = await reveal(`/admin/inventory-keys/${record.id}/reveal`);
+      setSecret(data.key);
+    } catch (e) {
+      notify((e as Error).message, { type: "error" });
+    } finally {
+      setBusy(false);
+    }
+  }
+
+  return (
+    <div>
+      <Button size="small" onClick={onReveal} disabled={busy}>
+        Reveal
+      </Button>
+      {secret ? <pre style={{ margin: 0, whiteSpace: "pre-wrap", maxWidth: 320 }}>{secret}</pre> : null}
+    </div>
+  );
+}
 
 // ---- Inventory accounts ----
 export const AccountList = () => (
@@ -34,6 +117,7 @@ export const AccountList = () => (
       <NumberField source="maxSlots" />
       <BooleanField source="hasPassword" />
       <TextField source="status" />
+      <RevealAccountButton />
     </Datagrid>
   </List>
 );
@@ -68,6 +152,7 @@ export const KeyList = () => (
       <TextField source="publicNote" />
       <BooleanField source="hasKey" />
       <TextField source="status" />
+      <RevealKeyButton />
       <DateField source="createdAt" showTime />
     </Datagrid>
   </List>

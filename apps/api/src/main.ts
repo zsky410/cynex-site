@@ -2,8 +2,12 @@ import "reflect-metadata";
 import { NestFactory } from "@nestjs/core";
 import { Logger } from "@nestjs/common";
 import { AppModule } from "./app.module";
+import { captureApiException, initApiSentry } from "./sentry";
 
 async function bootstrap(): Promise<void> {
+  initApiSentry(process.env.SENTRY_DSN);
+  process.on("uncaughtException", captureApiException);
+  process.on("unhandledRejection", captureApiException);
   const app = await NestFactory.create(AppModule, { bodyParser: true });
   app.setGlobalPrefix("", { exclude: ["health"] });
   app.enableCors({

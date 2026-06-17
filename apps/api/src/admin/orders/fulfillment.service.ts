@@ -12,6 +12,8 @@ import {
 import { PrismaService } from "../../prisma/prisma.service";
 import { QueueService } from "../../queue/queue.service";
 import { deliveryEmail } from "./delivery-template";
+import { AuditService } from "../../audit/audit.service";
+import { AuditAction } from "@cynex/shared";
 
 // Statuses from which an item may still be (re)assigned. Once delivered/refunded/
 // cancelled it is locked.
@@ -24,6 +26,7 @@ export class FulfillmentService {
   constructor(
     private readonly prisma: PrismaService,
     private readonly queue: QueueService,
+    private readonly audit?: AuditService,
   ) {}
 
   private async loadOrThrow(fulfillmentId: string) {
@@ -69,7 +72,7 @@ export class FulfillmentService {
   }
 
   // Assign a dedicated OR shared account. Branches on the account's accountType.
-  async assignAccount(fulfillmentId: string, inventoryAccountId: string) {
+  async assignAccount(fulfillmentId: string, inventoryAccountId: string, adminId?: string) {
     const f = await this.loadOrThrow(fulfillmentId);
     if (!ASSIGNABLE.includes(f.status)) throw new BadRequestException("Item không thể gán lúc này");
     if (f.accountAllocationId || f.inventoryAccountId) {
@@ -130,11 +133,24 @@ export class FulfillmentService {
       });
       await tx.orderItem.update({ where: { id: f.orderItemId }, data: { status: "assigned" } });
       await this.recomputeOrder(tx, f.orderItem.orderId);
+      if (adminId) {
+        await this.audit?.logAdminAction(
+          adminId,
+          AuditAction.ADMIN_ASSIGN_ACCOUNT,
+          "order_fulfillment",
+          f.id,
+          {
+            inventoryAccountId: account.id,
+            accountType: account.accountType,
+            orderItemId: f.orderItemId,
+          },
+        );
+      }
       return { ok: true, allocationId: allocation.id };
     });
   }
 
-  async assignKey(fulfillmentId: string, inventoryKeyId: string) {
+  async assignKey(fulfillmentId: string, inventoryKeyId: string, adminId?: string) {
     const f = await this.loadOrThrow(fulfillmentId);
     if (!ASSIGNABLE.includes(f.status)) throw new BadRequestException("Item không thể gán lúc này");
     if (f.inventoryKeyId) throw new BadRequestException("Item đã được gán key");
@@ -162,6 +178,18 @@ export class FulfillmentService {
       });
       await tx.orderItem.update({ where: { id: f.orderItemId }, data: { status: "assigned" } });
       await this.recomputeOrder(tx, f.orderItem.orderId);
+      if (adminId) {
+        await this.audit?.logAdminAction(
+          adminId,
+          AuditAction.ADMIN_ASSIGN_KEY,
+          "order_fulfillment",
+          f.id,
+          {
+            inventoryKeyId: key.id,
+            orderItemId: f.orderItemId,
+          },
+        );
+      }
       return { ok: true };
     });
   }
@@ -235,6 +263,17 @@ export class FulfillmentService {
       },
       // BullMQ rejects ":" in custom job ids; email_logs still dedupes on dedupeKey.
       dedupeKey.replaceAll(":", "-"),
+    );
+    await this.audit?.logAdminAction(
+      adminId,
+      AuditAction.ADMIN_SEND_DELIVERY_EMAIL,
+      "order_fulfillment",
+      f.id,
+      {
+        orderId: f.orderItem.orderId,
+        orderCode: f.orderItem.order.orderCode,
+        resend,
+      },
     );
     return { ok: true, resend };
   }

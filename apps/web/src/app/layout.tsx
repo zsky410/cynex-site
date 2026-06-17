@@ -19,6 +19,7 @@ export default function RootLayout({ children }: { children: React.ReactNode }) 
             <nav className="flex gap-4 text-sm">
               <Link href="/products">Sản phẩm</Link>
               <Link href="/orders">Đơn của tôi</Link>
+              <Link href="/warranty">Hỗ trợ</Link>
               <Link href="/wallet">Ví</Link>
               <Link href="/login">Đăng nhập</Link>
             </nav>

@@ -28,6 +28,7 @@ npm-debug.log*
 .DS_Store
 coverage/
 backups/
+.data/
 Thumbs.db
 
 # cursor / IDE (keep .cursor/rules for project conventions)
@@ -35,3 +36,4 @@ Thumbs.db
 .cursor/plans/
 .vscode/
 .idea/
+.superpowers/

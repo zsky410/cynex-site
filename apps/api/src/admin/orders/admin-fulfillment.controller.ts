@@ -14,13 +14,21 @@ export class AdminFulfillmentController {
   }
 
   @Post(":id/assign-account")
-  assignAccount(@Param("id") id: string, @Body() b: { inventoryAccountId: string }) {
-    return this.fulfillment.assignAccount(id, b.inventoryAccountId);
+  assignAccount(
+    @Param("id") id: string,
+    @CurrentAdmin() admin: AuthAdmin,
+    @Body() b: { inventoryAccountId: string },
+  ) {
+    return this.fulfillment.assignAccount(id, b.inventoryAccountId, admin.id);
   }
 
   @Post(":id/assign-key")
-  assignKey(@Param("id") id: string, @Body() b: { inventoryKeyId: string }) {
-    return this.fulfillment.assignKey(id, b.inventoryKeyId);
+  assignKey(
+    @Param("id") id: string,
+    @CurrentAdmin() admin: AuthAdmin,
+    @Body() b: { inventoryKeyId: string },
+  ) {
+    return this.fulfillment.assignKey(id, b.inventoryKeyId, admin.id);
   }
 
   @Post(":id/manual")
