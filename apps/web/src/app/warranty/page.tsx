@@ -3,7 +3,13 @@
 import Link from "next/link";
 import { Suspense, useEffect, useMemo, useState } from "react";
 import { useRouter, useSearchParams } from "next/navigation";
+import { LifeBuoy, MessageSquareMore, Paperclip } from "lucide-react";
 import { ApiError, apiFetch, apiUploadFile, getToken } from "@/lib/api";
+import { EmptyState } from "@/components/ui/empty-state";
+import { FieldLabel, TextArea } from "@/components/ui/form-field";
+import { Panel } from "@/components/ui/panel";
+import { SectionHeader } from "@/components/ui/section-header";
+import { StatusPill } from "@/components/ui/status-pill";
 
 const STATUS_LABEL: Record<string, string> = {
   open: "Mới tạo",
@@ -44,7 +50,7 @@ function WarrantyCasesClient() {
   const searchParams = useSearchParams();
   const selectedId = searchParams.get("id");
 
-  const [cases, setCases] = useState<WarrantyListRow[]>([]);
+  const [cases, setCases] = useState<WarrantyListRow[] | null>(null);
   const [detail, setDetail] = useState<WarrantyDetail | null>(null);
   const [message, setMessage] = useState("");
   const [files, setFiles] = useState<File[]>([]);
@@ -64,7 +70,7 @@ function WarrantyCasesClient() {
       });
   }, [router]);
 
-  const resolvedSelectedId = useMemo(() => selectedId ?? cases[0]?.id ?? null, [selectedId, cases]);
+  const resolvedSelectedId = useMemo(() => selectedId ?? cases?.[0]?.id ?? null, [selectedId, cases]);
 
   useEffect(() => {
     if (!resolvedSelectedId) {
@@ -95,15 +101,17 @@ function WarrantyCasesClient() {
       });
       setDetail(updated);
       setCases((rows) =>
-        rows.map((row) =>
-          row.id === updated.id
-            ? {
-                ...row,
-                status: updated.status,
-                _count: { messages: updated.messages.length },
-              }
-            : row,
-        ),
+        rows
+          ? rows.map((row) =>
+              row.id === updated.id
+                ? {
+                    ...row,
+                    status: updated.status,
+                    _count: { messages: updated.messages.length },
+                  }
+                : row,
+            )
+          : rows,
       );
       setMessage("");
       setFiles([]);
@@ -116,66 +124,86 @@ function WarrantyCasesClient() {
 
   return (
     <section className="space-y-6">
-      <div className="flex items-end justify-between gap-4">
-        <div>
-          <p className="text-xs uppercase tracking-[0.2em] text-slate-500">Warranty</p>
-          <h1 className="mt-2 text-2xl font-bold">Yeu cau ho tro / bao hanh</h1>
-        </div>
-        <Link href="/orders" className="text-sm text-brand">
-          Quay lai don hang
-        </Link>
-      </div>
+      <SectionHeader
+        eyebrow="Warranty"
+        title="Yêu cầu hỗ trợ / bảo hành"
+        description="Danh sách case và toàn bộ trao đổi được gom trong cùng một không gian để bạn không phải chuyển trang liên tục."
+        action={
+          <Link href="/orders" className="button-secondary">
+            Quay lại đơn hàng
+          </Link>
+        }
+      />
 
-      {error && <p className="rounded-xl border border-red-200 bg-red-50 px-4 py-3 text-sm text-red-700">{error}</p>}
+      {error ? <Panel className="border-rose-400/20 bg-rose-400/10 text-sm text-rose-100">{error}</Panel> : null}
 
       <div className="grid gap-6 lg:grid-cols-[320px,1fr]">
         <div className="space-y-3">
-          {cases.map((item) => {
+          {cases?.map((item) => {
             const active = item.id === resolvedSelectedId;
             return (
               <button
                 key={item.id}
                 type="button"
                 onClick={() => router.push(`/warranty?id=${item.id}`)}
-                className={`w-full rounded-2xl border p-4 text-left transition ${
-                  active ? "border-brand bg-amber-50" : "bg-white hover:border-slate-300"
+                className={`w-full rounded-[24px] border p-4 text-left transition ${
+                  active
+                    ? "border-cyan-400/30 bg-cyan-400/10"
+                    : "border-white/10 bg-white/[0.04] hover:border-white/20"
                 }`}
               >
-                <p className="text-sm font-semibold">
-                  {item.orderItem.product.name} - {item.orderItem.variant.name}
-                </p>
-                <p className="mt-1 text-xs text-slate-500">Don #{item.order.orderCode}</p>
-                <p className="mt-2 text-sm text-slate-700">{STATUS_LABEL[item.status] ?? item.status}</p>
-                <p className="mt-1 text-xs text-slate-500">
-                  {item._count.messages} tin nhan · {new Date(item.createdAt).toLocaleString("vi-VN")}
+                <div className="flex items-start justify-between gap-3">
+                  <div>
+                    <p className="text-sm font-semibold text-white">
+                      {item.orderItem.product.name} - {item.orderItem.variant.name}
+                    </p>
+                    <p className="mt-1 text-xs text-slate-500">Đơn #{item.order.orderCode}</p>
+                  </div>
+                  <StatusPill label={STATUS_LABEL[item.status] ?? item.status} tone={item.status === "resolved" ? "success" : item.status === "rejected" ? "danger" : "info"} className="tracking-[0.12em]" />
+                </div>
+                <p className="mt-3 text-xs text-slate-400">
+                  {item._count.messages} tin nhắn · {new Date(item.createdAt).toLocaleString("vi-VN")}
                 </p>
               </button>
             );
           })}
-          {cases.length === 0 && (
-            <div className="rounded-2xl border bg-white p-6 text-sm text-slate-500">
-              Chua co yeu cau nao. Ban co the mo case tu trang chi tiet don hang da giao.
-            </div>
-          )}
+          {cases && cases.length === 0 ? (
+            <EmptyState
+              title="Chưa có yêu cầu nào"
+              description="Bạn có thể mở case hỗ trợ trực tiếp từ trang chi tiết đơn hàng đã giao."
+              href="/orders"
+              cta="Xem đơn hàng"
+            />
+          ) : null}
         </div>
 
-        <div className="rounded-2xl border bg-white p-6">
+        <Panel className="min-h-[480px]">
           {!detail ? (
-            <p className="text-sm text-slate-500">Chon mot case de xem chi tiet.</p>
+            <div className="flex min-h-[360px] items-center justify-center">
+              <EmptyState
+                title="Chọn một case để xem chi tiết"
+                description="Khu vực này sẽ hiển thị hội thoại, trạng thái xử lý và form phản hồi."
+              />
+            </div>
           ) : (
             <div className="space-y-5">
               <div>
-                <p className="text-xs uppercase tracking-[0.2em] text-slate-500">Case #{detail.id}</p>
-                <h2 className="mt-2 text-xl font-semibold">
-                  {detail.orderItem.product.name} - {detail.orderItem.variant.name}
-                </h2>
-                <p className="mt-2 text-sm text-slate-600">
-                  Trang thai: <span className="font-medium">{STATUS_LABEL[detail.status] ?? detail.status}</span>
+                <div className="flex flex-wrap items-center justify-between gap-3">
+                  <div>
+                    <p className="text-xs uppercase tracking-[0.2em] text-slate-500">Case #{detail.id}</p>
+                    <h2 className="mt-2 text-xl font-semibold text-white">
+                      {detail.orderItem.product.name} - {detail.orderItem.variant.name}
+                    </h2>
+                  </div>
+                  <StatusPill label={STATUS_LABEL[detail.status] ?? detail.status} tone={detail.status === "resolved" ? "success" : detail.status === "rejected" ? "danger" : "info"} />
+                </div>
+                <p className="mt-3 text-sm text-slate-400">
+                  Theo dõi trả lời của admin và cập nhật thêm thông tin mới khi cần.
                 </p>
                 {detail.adminNote ? (
-                  <p className="mt-2 rounded-xl bg-slate-50 p-3 text-sm text-slate-700">
-                    Ghi chu admin: {detail.adminNote}
-                  </p>
+                  <div className="mt-3 rounded-[20px] border border-white/8 bg-white/[0.04] p-4 text-sm text-slate-200">
+                    Ghi chú admin: {detail.adminNote}
+                  </div>
                 ) : null}
               </div>
 
@@ -183,58 +211,72 @@ function WarrantyCasesClient() {
                 {detail.messages.map((row) => (
                   <div
                     key={row.id}
-                    className={`rounded-2xl p-4 text-sm ${
-                      row.authorType === "admin" ? "bg-amber-50" : "bg-slate-50"
+                    className={`rounded-[24px] p-4 text-sm ${
+                      row.authorType === "admin"
+                        ? "border border-amber-400/12 bg-amber-400/6"
+                        : "border border-white/8 bg-white/[0.04]"
                     }`}
                   >
-                    <div className="mb-2 flex items-center justify-between gap-3 text-xs text-slate-500">
-                      <span>{row.authorType === "admin" ? "Admin" : "Ban"}</span>
+                    <div className="mb-3 flex items-center justify-between gap-3 text-xs text-slate-400">
+                      <span className="inline-flex items-center gap-2">
+                        {row.authorType === "admin" ? (
+                          <LifeBuoy className="size-3.5 text-amber-300" />
+                        ) : (
+                          <MessageSquareMore className="size-3.5 text-cyan-300" />
+                        )}
+                        {row.authorType === "admin" ? "Admin" : "Bạn"}
+                      </span>
                       <span>{new Date(row.createdAt).toLocaleString("vi-VN")}</span>
                     </div>
-                    <p className="whitespace-pre-wrap">{row.message}</p>
+                    <p className="whitespace-pre-wrap leading-6 text-slate-200">{row.message}</p>
                   </div>
                 ))}
               </div>
 
-              {!["resolved", "rejected", "closed"].includes(detail.status) && (
-                <div className="rounded-2xl border bg-slate-50 p-4">
-                  <label className="mb-2 block text-sm font-medium">Phan hoi them</label>
-                  <textarea
-                    className="min-h-32 w-full rounded-xl border bg-white px-3 py-2"
+              {!["resolved", "rejected", "closed"].includes(detail.status) ? (
+                <div className="rounded-[24px] border border-white/8 bg-[#0c1324] p-4">
+                  <FieldLabel hint="Reply composer">Phản hồi thêm</FieldLabel>
+                  <TextArea
                     value={message}
                     onChange={(e) => setMessage(e.target.value)}
-                    placeholder="Cap nhat tinh trang moi, ket qua ban thu lai, anh chup man hinh..."
+                    placeholder="Cập nhật tình trạng mới, kết quả bạn thử lại, ảnh chụp màn hình..."
                     disabled={busy}
                   />
-                  <label className="mb-2 mt-4 block text-sm font-medium">Dinh kem them</label>
-                  <input
-                    className="block w-full text-sm"
-                    type="file"
-                    multiple
-                    accept=".png,.jpg,.jpeg,.webp,.pdf,.txt"
-                    onChange={(e) => setFiles(Array.from(e.target.files ?? []))}
-                    disabled={busy}
-                  />
+                  <div className="mt-4">
+                    <FieldLabel>Dính kèm thêm</FieldLabel>
+                    <label className="flex cursor-pointer items-center gap-2 rounded-2xl border border-dashed border-white/15 bg-white/[0.03] px-4 py-3 text-sm text-slate-300">
+                      <Paperclip className="size-4 text-violet-300" />
+                      Chọn file PNG, JPG, WEBP, PDF hoặc TXT
+                      <input
+                        className="hidden"
+                        type="file"
+                        multiple
+                        accept=".png,.jpg,.jpeg,.webp,.pdf,.txt"
+                        onChange={(e) => setFiles(Array.from(e.target.files ?? []))}
+                        disabled={busy}
+                      />
+                    </label>
+                  </div>
                   {files.length > 0 ? (
-                    <ul className="mt-3 space-y-1 text-xs text-slate-600">
+                    <ul className="mt-3 space-y-1 text-xs text-slate-400">
                       {files.map((file) => (
                         <li key={`${file.name}-${file.size}`}>{file.name} - {(file.size / 1024).toFixed(1)} KB</li>
                       ))}
                     </ul>
                   ) : null}
                   <button
-                    className="mt-4 rounded-xl bg-brand px-4 py-2 text-white disabled:opacity-60"
+                    className="button-primary mt-4"
                     type="button"
                     disabled={busy || !message.trim()}
                     onClick={reply}
                   >
-                    {busy ? "Dang gui..." : "Gui phan hoi"}
+                    {busy ? "Đang gửi..." : "Gửi phản hồi"}
                   </button>
                 </div>
-              )}
+              ) : null}
             </div>
           )}
-        </div>
+        </Panel>
       </div>
     </section>
   );
@@ -242,7 +284,7 @@ function WarrantyCasesClient() {
 
 export default function WarrantyCasesPage() {
   return (
-    <Suspense fallback={<p>Dang tai...</p>}>
+    <Suspense fallback={<p className="text-sm text-slate-300">Đang tải hỗ trợ...</p>}>
       <WarrantyCasesClient />
     </Suspense>
   );

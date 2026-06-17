@@ -3,6 +3,9 @@
 import { useRouter, useSearchParams } from "next/navigation";
 import { Suspense, useState } from "react";
 import { apiFetch, ApiError } from "@/lib/api";
+import { FieldLabel, TextInput } from "@/components/ui/form-field";
+import { Panel } from "@/components/ui/panel";
+import { StatusPill } from "@/components/ui/status-pill";
 
 function ResetForm() {
   const router = useRouter();
@@ -26,14 +29,21 @@ function ResetForm() {
   }
 
   return (
-    <form onSubmit={submit} className="mx-auto max-w-sm space-y-4 rounded-xl border bg-white p-6">
-      <h1 className="text-xl font-bold">Đặt lại mật khẩu</h1>
-      {!token && <p className="text-sm text-red-600">Thiếu token.</p>}
-      <input className="w-full rounded-lg border px-3 py-2" type="password" placeholder="Mật khẩu mới"
-        value={password} onChange={(e) => setPassword(e.target.value)} required minLength={8} />
-      {error && <p className="text-sm text-red-600">{error}</p>}
-      <button className="w-full rounded-lg bg-brand py-2.5 font-medium text-white">Đặt lại</button>
-    </form>
+    <Panel className="mx-auto max-w-md">
+      <form onSubmit={submit} className="space-y-5">
+        <StatusPill label="Recovery" tone={token ? "info" : "danger"} />
+        <div>
+          <h1 className="mt-4 text-3xl font-semibold text-white">Đặt lại mật khẩu</h1>
+          {!token ? <p className="mt-2 text-sm text-rose-300">Thiếu token.</p> : <p className="mt-2 text-sm text-slate-300">Chọn mật khẩu mới cho tài khoản Cynex của bạn.</p>}
+        </div>
+        <div>
+          <FieldLabel>Mật khẩu mới</FieldLabel>
+          <TextInput type="password" placeholder="Mật khẩu mới" value={password} onChange={(e) => setPassword(e.target.value)} required minLength={8} />
+        </div>
+        {error ? <p className="text-sm text-rose-300">{error}</p> : null}
+        <button className="button-primary w-full">Đặt lại</button>
+      </form>
+    </Panel>
   );
 }
 

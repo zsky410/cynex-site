@@ -3,7 +3,13 @@
 import Link from "next/link";
 import { use, useEffect, useMemo, useState } from "react";
 import { useSearchParams } from "next/navigation";
+import { CheckCircle2, Paperclip } from "lucide-react";
 import { ApiError, apiFetch, apiUploadFile } from "@/lib/api";
+import { EmptyState } from "@/components/ui/empty-state";
+import { FieldLabel, SelectInput, TextArea } from "@/components/ui/form-field";
+import { Panel } from "@/components/ui/panel";
+import { SectionHeader } from "@/components/ui/section-header";
+import { StatusPill } from "@/components/ui/status-pill";
 
 const REASONS = [
   { id: "cannot_login", label: "Khong dang nhap duoc" },
@@ -90,103 +96,119 @@ export default function WarrantyPage({ params }: { params: Promise<{ orderCode: 
     }
   }
 
-  if (error && !order) return <p className="text-red-600">{error}</p>;
-  if (!order) return <p>Dang tai...</p>;
+  if (error && !order) return <EmptyState title="Không tải được đơn hàng" description={error} href={`/orders/${orderCode}`} cta="Quay lại chi tiết đơn" />;
+  if (!order) return <p className="text-sm text-slate-300">Đang tải form bảo hành...</p>;
   if (!itemId || !selectedItem) {
     return (
-      <section className="mx-auto max-w-2xl rounded-2xl border bg-white p-6">
-        <p className="text-sm text-slate-600">Khong tim thay san pham trong don hang.</p>
-        <Link href={`/orders/${orderCode}`} className="mt-3 inline-block text-sm text-brand">
-          Quay lai chi tiet don
-        </Link>
-      </section>
+      <EmptyState title="Không tìm thấy sản phẩm trong đơn" description="Hãy mở lại trang chi tiết đơn và chọn đúng mục cần hỗ trợ." href={`/orders/${orderCode}`} cta="Quay lại chi tiết đơn" />
     );
   }
 
   return (
-    <section className="mx-auto max-w-2xl space-y-6">
-      <div className="rounded-2xl border bg-white p-6">
-        <p className="text-xs uppercase tracking-[0.2em] text-slate-500">Ho tro / Bao hanh</p>
-        <h1 className="mt-2 text-2xl font-bold">
-          {selectedItem.product.name} - {selectedItem.variant.name}
-        </h1>
-        <p className="mt-2 text-sm text-slate-600">
-          Bao hanh toi da {selectedItem.variant.warrantyDays} ngay. Mo ta loi ro rang va dinh kem anh/PDF neu co.
-        </p>
-      </div>
+    <section className="space-y-6">
+      <SectionHeader
+        eyebrow="Warranty request"
+        title={`${selectedItem.product.name} - ${selectedItem.variant.name}`}
+        description="Mô tả vấn đề rõ ràng và đính kèm bằng chứng nếu có để admin xử lý nhanh hơn."
+      />
 
-      <div className="rounded-2xl border bg-white p-6">
-        <label className="mb-2 block text-sm font-medium">Loai su co</label>
-        <select
-          className="w-full rounded-xl border px-3 py-2"
-          value={reason}
-          onChange={(e) => setReason(e.target.value as (typeof REASONS)[number]["id"])}
-          disabled={busy}
-        >
-          {REASONS.map((option) => (
-            <option key={option.id} value={option.id}>
-              {option.label}
-            </option>
-          ))}
-        </select>
+      <Panel>
+        <div className="flex flex-wrap items-center justify-between gap-3">
+          <div>
+            <StatusPill label={`BH ${selectedItem.variant.warrantyDays} ngày`} tone="success" />
+            <h1 className="mt-3 text-2xl font-semibold text-white">
+              {selectedItem.product.name} - {selectedItem.variant.name}
+            </h1>
+          </div>
+          <Link href={`/orders/${orderCode}`} className="button-secondary">
+            Quay lại đơn hàng
+          </Link>
+        </div>
+      </Panel>
 
-        <label className="mb-2 mt-4 block text-sm font-medium">Mo ta</label>
-        <textarea
-          className="min-h-40 w-full rounded-xl border px-3 py-2"
-          placeholder="Mo ta van de, thoi diem phat sinh, ban da thu cach nao..."
-          value={message}
-          onChange={(e) => setMessage(e.target.value)}
-          disabled={busy}
-        />
+      <Panel className="space-y-5">
+        <div>
+          <FieldLabel>Loại sự cố</FieldLabel>
+          <SelectInput
+            value={reason}
+            onChange={(e) => setReason(e.target.value as (typeof REASONS)[number]["id"])}
+            disabled={busy}
+          >
+            {REASONS.map((option) => (
+              <option key={option.id} value={option.id}>
+                {option.label}
+              </option>
+            ))}
+          </SelectInput>
+        </div>
 
-        <label className="mb-2 mt-4 block text-sm font-medium">Dinh kem (toi da 10MB moi tep)</label>
-        <input
-          className="block w-full text-sm"
-          type="file"
-          multiple
-          accept=".png,.jpg,.jpeg,.webp,.pdf,.txt"
-          onChange={(e) => setFiles(Array.from(e.target.files ?? []))}
-          disabled={busy}
-        />
-        {files.length > 0 && (
-          <ul className="mt-3 space-y-1 text-xs text-slate-600">
+        <div>
+          <FieldLabel>Mô tả</FieldLabel>
+          <TextArea
+            placeholder="Mô tả vấn đề, thời điểm phát sinh, và những gì bạn đã thử..."
+            value={message}
+            onChange={(e) => setMessage(e.target.value)}
+            disabled={busy}
+          />
+        </div>
+
+        <div>
+          <FieldLabel>Dính kèm</FieldLabel>
+          <label className="flex cursor-pointer items-center gap-2 rounded-2xl border border-dashed border-white/15 bg-white/[0.03] px-4 py-3 text-sm text-slate-300">
+            <Paperclip className="size-4 text-violet-300" />
+            Chọn file PNG, JPG, WEBP, PDF hoặc TXT
+            <input
+              className="hidden"
+              type="file"
+              multiple
+              accept=".png,.jpg,.jpeg,.webp,.pdf,.txt"
+              onChange={(e) => setFiles(Array.from(e.target.files ?? []))}
+              disabled={busy}
+            />
+          </label>
+        </div>
+        {files.length > 0 ? (
+          <ul className="space-y-1 text-xs text-slate-400">
             {files.map((file) => (
               <li key={`${file.name}-${file.size}`}>{file.name} - {(file.size / 1024).toFixed(1)} KB</li>
             ))}
           </ul>
-        )}
+        ) : null}
 
-        {error && <p className="mt-3 text-sm text-red-600">{error}</p>}
+        {error ? <p className="text-sm text-rose-300">{error}</p> : null}
 
-        <div className="mt-5 flex gap-3">
+        <div className="flex flex-wrap gap-3">
           <button
-            className="rounded-xl bg-brand px-4 py-2 text-white disabled:opacity-60"
+            className="button-primary"
             onClick={submit}
             disabled={busy || !message.trim()}
             type="button"
           >
-            {busy ? "Dang gui..." : "Gui yeu cau"}
+            {busy ? "Đang gửi..." : "Gửi yêu cầu"}
           </button>
-          <Link href={`/orders/${orderCode}`} className="rounded-xl border px-4 py-2 text-sm">
-            Quay lai don hang
+          <Link href={`/orders/${orderCode}`} className="button-secondary">
+            Hủy
           </Link>
         </div>
-      </div>
+      </Panel>
 
-      {created && (
-        <div className="rounded-2xl border bg-emerald-50 p-6">
-          <p className="text-sm font-semibold text-emerald-800">Da tao yeu cau #{created.id}</p>
-          <p className="mt-1 text-sm text-emerald-700">Trang thai hien tai: {created.status}</p>
-          {created.messages[0] && (
-            <p className="mt-3 rounded-xl bg-white p-3 text-sm text-slate-700">
+      {created ? (
+        <Panel className="border-emerald-400/16 bg-emerald-400/8">
+          <div className="inline-flex items-center gap-2 text-emerald-100">
+            <CheckCircle2 className="size-4 text-emerald-300" />
+            Đã tạo yêu cầu #{created.id}
+          </div>
+          <p className="mt-3 text-sm text-emerald-100">Trạng thái hiện tại: {created.status}</p>
+          {created.messages[0] ? (
+            <div className="mt-4 rounded-2xl border border-white/8 bg-[#08101d] p-4 text-sm text-slate-200">
               {created.messages[0].message}
-            </p>
-          )}
-          <Link href={`/warranty?id=${created.id}`} className="mt-3 inline-block text-sm text-emerald-800 underline">
-            Xem toan bo trao doi
+            </div>
+          ) : null}
+          <Link href={`/warranty?id=${created.id}`} className="button-secondary mt-4">
+            Xem toàn bộ trao đổi
           </Link>
-        </div>
-      )}
+        </Panel>
+      ) : null}
     </section>
   );
 }

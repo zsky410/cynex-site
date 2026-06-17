@@ -2,7 +2,12 @@
 
 import { useRouter } from "next/navigation";
 import { useState } from "react";
+import { CheckCircle2, ChevronRight, Clock3, ShieldCheck, Sparkles } from "lucide-react";
 import { apiFetch, getToken, ApiError } from "@/lib/api";
+import { VariantCard } from "@/components/catalog/variant-card";
+import { FieldLabel, TextInput } from "@/components/ui/form-field";
+import { Panel } from "@/components/ui/panel";
+import { StatusPill } from "@/components/ui/status-pill";
 import { formatVnd } from "@/lib/utils";
 
 interface Field {
@@ -67,45 +72,115 @@ export function BuyPanel({ variants }: { variants: Variant[] }) {
   }
 
   return (
-    <div className="rounded-xl border bg-white p-5">
-      <div className="space-y-2">
+    <>
+      <div className="space-y-3">
         {variants.map((v) => (
-          <label
+          <VariantCard
             key={v.id}
-            className={`flex cursor-pointer items-center justify-between rounded-lg border p-3 ${
-              v.id === selectedId ? "border-brand ring-1 ring-brand" : ""
-            }`}
-          >
-            <span className="flex items-center gap-2">
-              <input
-                type="radio"
-                name="variant"
-                checked={v.id === selectedId}
-                onChange={() => setSelectedId(v.id)}
-                disabled={v.status === "out_of_stock"}
-              />
-              <span>
-                <span className="font-medium">{v.name}</span>
-                <span className="block text-xs text-slate-500">
-                  {FULFILLMENT_LABEL[v.fulfillmentType] ?? v.fulfillmentType}
-                  {v.warrantyDays ? ` · BH ${v.warrantyDays} ngày` : ""}
-                  {v.estimatedDeliveryMinutes ? ` · xử lý ~${v.estimatedDeliveryMinutes} phút` : ""}
-                </span>
-              </span>
-            </span>
-            <span className="font-bold text-brand">{formatVnd(v.price)}</span>
-          </label>
+            title={v.name}
+            subtitle={FULFILLMENT_LABEL[v.fulfillmentType] ?? v.fulfillmentType}
+            price={v.price}
+            warrantyDays={v.warrantyDays}
+            estimatedDeliveryMinutes={v.estimatedDeliveryMinutes}
+            selected={v.id === selectedId}
+            disabled={v.status === "out_of_stock"}
+            onSelect={() => setSelectedId(v.id)}
+          />
         ))}
       </div>
 
-      {selected.requiresCustomerInput && (
-        <div className="mt-4 space-y-3">
-          <p className="text-sm font-medium">Thông tin cần cung cấp</p>
+      <Panel className="sticky top-24 mt-6 hidden lg:block">
+        <BuySummary
+          selected={selected}
+          input={input}
+          setInput={setInput}
+          error={error}
+          loading={loading}
+          buy={buy}
+        />
+      </Panel>
+
+      <div className="fixed inset-x-4 bottom-4 z-40 lg:hidden">
+        <div className="rounded-[24px] border border-cyan-400/20 bg-[#08101c]/92 p-3 shadow-[0_20px_60px_-24px_rgba(8,145,178,0.5)] backdrop-blur-xl">
+          <div className="mb-3 flex items-center justify-between gap-3">
+            <div>
+              <p className="text-xs uppercase tracking-[0.18em] text-slate-400">Đã chọn</p>
+              <p className="text-sm font-medium text-white">{selected.name}</p>
+            </div>
+            <p className="text-lg font-semibold text-cyan-300">{formatVnd(selected.price)}</p>
+          </div>
+          <button
+            onClick={buy}
+            disabled={loading || selected.status === "out_of_stock"}
+            className="button-primary w-full"
+          >
+            {selected.status === "out_of_stock" ? "Tạm hết hàng" : loading ? "Đang xử lý..." : "Mua ngay"}
+            {!loading ? <ChevronRight className="size-4" /> : null}
+          </button>
+        </div>
+      </div>
+    </>
+  );
+}
+
+function BuySummary({
+  selected,
+  input,
+  setInput,
+  error,
+  loading,
+  buy,
+}: {
+  selected: Variant;
+  input: Record<string, string>;
+  setInput: (value: Record<string, string>) => void;
+  error: string | null;
+  loading: boolean;
+  buy: () => Promise<void>;
+}) {
+  return (
+    <div className="space-y-5">
+      <div>
+        <StatusPill label="Buy box" tone="info" />
+        <h3 className="mt-4 text-2xl font-semibold text-white">{selected.name}</h3>
+        <p className="mt-2 text-sm text-slate-300">
+          {FULFILLMENT_LABEL[selected.fulfillmentType] ?? selected.fulfillmentType}
+        </p>
+      </div>
+
+      <div className="space-y-3 rounded-[24px] border border-white/8 bg-black/10 p-4">
+        <div className="flex items-center justify-between gap-3">
+          <span className="text-sm text-slate-400">Tổng tiền</span>
+          <span className="text-2xl font-semibold text-cyan-300">{formatVnd(selected.price)}</span>
+        </div>
+        <div className="grid gap-2 text-sm text-slate-300">
+          <div className="inline-flex items-center gap-2">
+            <Clock3 className="size-4 text-cyan-300" />
+            {selected.estimatedDeliveryMinutes
+              ? `Ước tính xử lý khoảng ${selected.estimatedDeliveryMinutes} phút`
+              : "Admin đang xử lý đơn thủ công"}
+          </div>
+          <div className="inline-flex items-center gap-2">
+            <ShieldCheck className="size-4 text-emerald-300" />
+            Bảo hành {selected.warrantyDays} ngày
+          </div>
+          <div className="inline-flex items-center gap-2">
+            <Sparkles className="size-4 text-violet-300" />
+            Thông tin sử dụng sẽ được gửi sau khi hoàn tất
+          </div>
+        </div>
+      </div>
+
+      {selected.requiresCustomerInput ? (
+        <div className="space-y-3">
+          <div>
+            <p className="text-sm font-medium text-white">Thông tin cần cung cấp</p>
+            <p className="mt-1 text-sm text-slate-400">Chỉ hiển thị các trường cần thiết cho gói đang chọn.</p>
+          </div>
           {(selected.customerInputSchema?.fields ?? []).map((f) => (
             <div key={f.name}>
-              <label className="text-xs text-slate-500">{f.label}</label>
-              <input
-                className="mt-1 w-full rounded-lg border px-3 py-2 text-sm"
+              <FieldLabel>{f.label}</FieldLabel>
+              <TextInput
                 type={f.type === "email" ? "email" : "text"}
                 value={input[f.name] ?? ""}
                 onChange={(e) => setInput({ ...input, [f.name]: e.target.value })}
@@ -113,16 +188,24 @@ export function BuyPanel({ variants }: { variants: Variant[] }) {
             </div>
           ))}
         </div>
-      )}
+      ) : null}
 
-      {error && <p className="mt-3 text-sm text-red-600">{error}</p>}
+      <div className="rounded-[22px] border border-amber-400/12 bg-amber-400/6 p-4 text-sm leading-6 text-amber-100">
+        <div className="inline-flex items-center gap-2 font-medium">
+          <CheckCircle2 className="size-4 text-amber-300" />
+          Sau khi thanh toán thành công, đơn sẽ chuyển sang trạng thái chờ admin xử lý.
+        </div>
+      </div>
+
+      {error ? <p className="text-sm text-rose-300">{error}</p> : null}
 
       <button
         onClick={buy}
         disabled={loading || selected.status === "out_of_stock"}
-        className="mt-4 w-full rounded-lg bg-brand py-2.5 font-medium text-white disabled:opacity-50"
+        className="button-primary w-full"
       >
         {selected.status === "out_of_stock" ? "Tạm hết hàng" : loading ? "Đang xử lý..." : "Mua ngay"}
+        {!loading ? <ChevronRight className="size-4" /> : null}
       </button>
     </div>
   );
