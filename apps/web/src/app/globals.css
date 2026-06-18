@@ -3,90 +3,9 @@
 @tailwind utilities;
 
 :root {
-  color-scheme: dark;
+  color-scheme: light;
 }
 
 body {
-  background:
-    radial-gradient(circle at top left, rgba(56, 189, 248, 0.16), transparent 26%),
-    radial-gradient(circle at 85% 15%, rgba(168, 85, 247, 0.14), transparent 24%),
-    linear-gradient(180deg, #070a12 0%, #090d17 42%, #05070d 100%);
-  @apply min-h-screen text-slate-100 antialiased;
-}
-
-body::selection {
-  @apply bg-cyan-400/30 text-white;
-}
-
-a,
-button {
-  @apply transition;
-}
-
-@layer components {
-  .panel {
-    @apply rounded-[28px] border border-white/10 bg-white/[0.04] p-5 shadow-[0_24px_80px_-48px_rgba(15,23,42,0.95)] backdrop-blur-xl md:p-6;
-  }
-
-  .button-primary {
-    @apply inline-flex items-center justify-center gap-2 rounded-xl bg-cyan-400 px-4 py-3 text-sm font-semibold text-slate-950 hover:bg-cyan-300 disabled:cursor-not-allowed disabled:opacity-60;
-  }
-
-  .button-secondary {
-    @apply inline-flex items-center justify-center gap-2 rounded-xl border border-white/10 bg-white/5 px-4 py-3 text-sm font-medium text-slate-100 hover:border-cyan-400/30 hover:bg-cyan-400/10;
-  }
-
-  .input-base {
-    @apply w-full rounded-2xl border border-white/10 bg-[#0d1322] px-4 py-3 text-sm text-white outline-none placeholder:text-slate-500 focus:border-cyan-400/40 focus:bg-[#10182b];
-  }
-
-  .search-shell {
-    @apply flex w-full items-center gap-3 rounded-full border border-white/10 bg-white/[0.04] px-4 py-3;
-  }
-
-  .eyebrow {
-    @apply text-[11px] font-semibold uppercase tracking-[0.28em] text-cyan-300/80;
-  }
-
-  .hero-grid {
-    @apply grid gap-6 lg:grid-cols-[1.2fr_0.8fr];
-  }
-
-  .metric-tile {
-    @apply rounded-2xl border border-white/10 bg-white/[0.04] p-4;
-  }
-
-  .subtle-divider {
-    @apply border-t border-white/10;
-  }
-
-  .site-noise {
-    position: fixed;
-    inset: 0;
-    pointer-events: none;
-    background-image:
-      linear-gradient(rgba(255, 255, 255, 0.025) 1px, transparent 1px),
-      linear-gradient(90deg, rgba(255, 255, 255, 0.025) 1px, transparent 1px);
-    background-size: 88px 88px;
-    mask-image: radial-gradient(circle at center, black 40%, transparent 90%);
-    opacity: 0.26;
-  }
-}
-
-@media (prefers-reduced-motion: no-preference) {
-  .panel,
-  .metric-tile {
-    animation: fade-up 480ms ease both;
-  }
-}
-
-@keyframes fade-up {
-  from {
-    opacity: 0;
-    transform: translateY(10px);
-  }
-  to {
-    opacity: 1;
-    transform: translateY(0);
-  }
+  @apply bg-slate-50 text-slate-900 antialiased;
 }

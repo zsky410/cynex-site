@@ -4,9 +4,6 @@ import Link from "next/link";
 import { useRouter } from "next/navigation";
 import { useState } from "react";
 import { apiFetch, setToken, ApiError } from "@/lib/api";
-import { FieldLabel, TextInput } from "@/components/ui/form-field";
-import { Panel } from "@/components/ui/panel";
-import { StatusPill } from "@/components/ui/status-pill";
 
 export default function RegisterPage() {
   const router = useRouter();
@@ -35,33 +32,21 @@ export default function RegisterPage() {
   }
 
   return (
-    <Panel className="mx-auto max-w-md">
-      <form onSubmit={submit} className="space-y-5">
-        <StatusPill label="Auth" tone="info" />
-        <div>
-          <h1 className="mt-4 text-3xl font-semibold text-white">Tạo tài khoản</h1>
-          <p className="mt-2 text-sm text-slate-300">Tạo tài khoản để thanh toán, theo dõi đơn và mở bảo hành sau này.</p>
-        </div>
-        <div>
-          <FieldLabel>Tên hiển thị</FieldLabel>
-          <TextInput placeholder="Tên (tuỳ chọn)" value={name} onChange={(e) => setName(e.target.value)} />
-        </div>
-        <div>
-          <FieldLabel>Email</FieldLabel>
-          <TextInput type="email" placeholder="Email" value={email} onChange={(e) => setEmail(e.target.value)} required />
-        </div>
-        <div>
-          <FieldLabel>Mật khẩu</FieldLabel>
-          <TextInput type="password" placeholder="Mật khẩu (>= 8 ký tự)" value={password} onChange={(e) => setPassword(e.target.value)} required minLength={8} />
-        </div>
-        {error ? <p className="text-sm text-rose-300">{error}</p> : null}
-        <button disabled={loading} className="button-primary w-full">
-          {loading ? "..." : "Đăng ký"}
-        </button>
-        <p className="text-sm text-slate-400">
-          Đã có tài khoản? <Link href="/login" className="text-cyan-300">Đăng nhập</Link>
-        </p>
-      </form>
-    </Panel>
+    <form onSubmit={submit} className="mx-auto max-w-sm space-y-4 rounded-xl border bg-white p-6">
+      <h1 className="text-xl font-bold">Tạo tài khoản</h1>
+      <input className="w-full rounded-lg border px-3 py-2" placeholder="Tên (tuỳ chọn)"
+        value={name} onChange={(e) => setName(e.target.value)} />
+      <input className="w-full rounded-lg border px-3 py-2" type="email" placeholder="Email"
+        value={email} onChange={(e) => setEmail(e.target.value)} required />
+      <input className="w-full rounded-lg border px-3 py-2" type="password" placeholder="Mật khẩu (>= 8 ký tự)"
+        value={password} onChange={(e) => setPassword(e.target.value)} required minLength={8} />
+      {error && <p className="text-sm text-red-600">{error}</p>}
+      <button disabled={loading} className="w-full rounded-lg bg-brand py-2.5 font-medium text-white disabled:opacity-50">
+        {loading ? "..." : "Đăng ký"}
+      </button>
+      <p className="text-sm text-slate-500">
+        Đã có tài khoản? <Link href="/login" className="text-brand">Đăng nhập</Link>
+      </p>
+    </form>
   );
 }

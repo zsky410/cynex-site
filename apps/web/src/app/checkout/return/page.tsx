@@ -1,20 +1,15 @@
 import Link from "next/link";
-import { CheckCircle2 } from "lucide-react";
-import { Panel } from "@/components/ui/panel";
-import { StatusPill } from "@/components/ui/status-pill";
 
 export default function CheckoutReturnPage() {
   return (
-    <Panel className="mx-auto max-w-2xl text-center">
-      <StatusPill label="Payment return" tone="success" />
-      <CheckCircle2 className="mx-auto mt-5 size-10 text-emerald-300" />
-      <h1 className="mt-4 text-3xl font-semibold text-white">Cảm ơn bạn!</h1>
-      <p className="mt-3 text-sm leading-6 text-slate-300">
+    <div className="mx-auto max-w-md rounded-xl border bg-white p-6 text-center">
+      <h1 className="text-xl font-bold">Cảm ơn bạn!</h1>
+      <p className="mt-2 text-slate-600">
         Thanh toán đang được xác nhận. Trạng thái đơn sẽ cập nhật trong giây lát.
       </p>
-      <Link href="/orders" className="button-primary mt-6">
+      <Link href="/orders" className="mt-4 inline-block rounded-lg bg-brand px-4 py-2 text-white">
         Xem đơn của tôi
       </Link>
-    </Panel>
+    </div>
   );
 }

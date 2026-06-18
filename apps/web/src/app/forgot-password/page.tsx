@@ -2,9 +2,6 @@
 
 import { useState } from "react";
 import { apiFetch } from "@/lib/api";
-import { FieldLabel, TextInput } from "@/components/ui/form-field";
-import { Panel } from "@/components/ui/panel";
-import { StatusPill } from "@/components/ui/status-pill";
 
 export default function ForgotPasswordPage() {
   const [email, setEmail] = useState("");
@@ -21,29 +18,18 @@ export default function ForgotPasswordPage() {
 
   if (done) {
     return (
-      <Panel className="mx-auto max-w-md">
-        <StatusPill label="Recovery" tone="success" />
-        <p className="mt-4 text-sm leading-6 text-slate-200">
-          Nếu email tồn tại, chúng tôi đã gửi link đặt lại mật khẩu. Vui lòng kiểm tra hộp thư.
-        </p>
-      </Panel>
+      <div className="mx-auto max-w-sm rounded-xl border bg-white p-6">
+        <p>Nếu email tồn tại, chúng tôi đã gửi link đặt lại mật khẩu. Vui lòng kiểm tra hộp thư.</p>
+      </div>
     );
   }
 
   return (
-    <Panel className="mx-auto max-w-md">
-      <form onSubmit={submit} className="space-y-5">
-        <StatusPill label="Recovery" tone="info" />
-        <div>
-          <h1 className="mt-4 text-3xl font-semibold text-white">Quên mật khẩu</h1>
-          <p className="mt-2 text-sm text-slate-300">Nhập email để nhận link đặt lại mật khẩu.</p>
-        </div>
-        <div>
-          <FieldLabel>Email</FieldLabel>
-          <TextInput type="email" placeholder="Email" value={email} onChange={(e) => setEmail(e.target.value)} required />
-        </div>
-        <button className="button-primary w-full">Gửi link</button>
-      </form>
-    </Panel>
+    <form onSubmit={submit} className="mx-auto max-w-sm space-y-4 rounded-xl border bg-white p-6">
+      <h1 className="text-xl font-bold">Quên mật khẩu</h1>
+      <input className="w-full rounded-lg border px-3 py-2" type="email" placeholder="Email"
+        value={email} onChange={(e) => setEmail(e.target.value)} required />
+      <button className="w-full rounded-lg bg-brand py-2.5 font-medium text-white">Gửi link</button>
+    </form>
   );
 }
