@@ -1,49 +1,61 @@
 "use client";
 
+import { ArrowLeft, Mail } from "lucide-react";
 import { useState } from "react";
+import { AuthField, AuthLink, AuthShell, AuthSubmitButton } from "@/components/auth/AuthShell";
 import { apiFetch } from "@/lib/api";
-import { FieldLabel, TextInput } from "@/components/ui/form-field";
-import { Panel } from "@/components/ui/panel";
-import { StatusPill } from "@/components/ui/status-pill";
 
 export default function ForgotPasswordPage() {
   const [email, setEmail] = useState("");
   const [done, setDone] = useState(false);
+  const [loading, setLoading] = useState(false);
 
   async function submit(e: React.FormEvent) {
     e.preventDefault();
+    setLoading(true);
     await apiFetch("/auth/forgot-password", {
       method: "POST",
       body: JSON.stringify({ email }),
     }).catch(() => {});
+    setLoading(false);
     setDone(true);
   }
 
-  if (done) {
-    return (
-      <Panel className="mx-auto max-w-md">
-        <StatusPill label="Recovery" tone="success" />
-        <p className="mt-4 text-sm leading-6 text-slate-200">
-          Nếu email tồn tại, chúng tôi đã gửi link đặt lại mật khẩu. Vui lòng kiểm tra hộp thư.
-        </p>
-      </Panel>
-    );
-  }
-
   return (
-    <Panel className="mx-auto max-w-md">
-      <form onSubmit={submit} className="space-y-5">
-        <StatusPill label="Recovery" tone="info" />
-        <div>
-          <h1 className="mt-4 text-3xl font-semibold text-white">Quên mật khẩu</h1>
-          <p className="mt-2 text-sm text-slate-300">Nhập email để nhận link đặt lại mật khẩu.</p>
-        </div>
-        <div>
-          <FieldLabel>Email</FieldLabel>
-          <TextInput type="email" placeholder="Email" value={email} onChange={(e) => setEmail(e.target.value)} required />
-        </div>
-        <button className="button-primary w-full">Gửi link</button>
-      </form>
-    </Panel>
+    <AuthShell
+      title="Quên mật khẩu"
+      subtitle="Nhập email đã đăng ký — chúng tôi sẽ gửi link đặt lại mật khẩu."
+      footer={
+        <>
+          <AuthLink href="/login">
+            <span className="inline-flex items-center gap-1.5">
+              <ArrowLeft className="h-3.5 w-3.5" />
+              Quay lại đăng nhập
+            </span>
+          </AuthLink>
+        </>
+      }
+    >
+      {done ? (
+        <p className="text-sm leading-relaxed text-slate-600">
+          Nếu email tồn tại, chúng tôi đã gửi link đặt lại mật khẩu. Vui lòng kiểm tra hộp thư (kể cả thư rác).
+        </p>
+      ) : (
+        <form onSubmit={submit} className="space-y-5">
+          <AuthField
+            id="forgot-email"
+            label="Địa chỉ Email"
+            type="email"
+            autoComplete="email"
+            placeholder="name@company.com"
+            icon={<Mail className="h-4 w-4" />}
+            value={email}
+            onChange={(e) => setEmail(e.target.value)}
+            required
+          />
+          <AuthSubmitButton loading={loading}>{loading ? "Đang gửi..." : "Gửi link đặt lại"}</AuthSubmitButton>
+        </form>
+      )}
+    </AuthShell>
   );
 }

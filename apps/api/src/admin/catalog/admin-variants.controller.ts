@@ -1,5 +1,8 @@
 import { Body, Controller, Delete, Get, Param, Patch, Post, Query, UseGuards } from "@nestjs/common";
+import { AuditAction } from "@cynex/shared";
 import { AdminAuthGuard } from "../../auth/guards";
+import { CurrentAdmin, AuthAdmin } from "../../common/current-user.decorator";
+import { AuditService } from "../../audit/audit.service";
 import { PrismaService } from "../../prisma/prisma.service";
 import { parseListQuery } from "../common/list-query";
 
@@ -28,7 +31,10 @@ function pick(body: Record<string, any>): Record<string, any> {
 @UseGuards(AdminAuthGuard)
 @Controller("admin/product-variants")
 export class AdminVariantsController {
-  constructor(private readonly prisma: PrismaService) {}
+  constructor(
+    private readonly prisma: PrismaService,
+    private readonly audit: AuditService,
+  ) {}
 
   @Get()
   async list(@Query() q: Record<string, any>) {
@@ -52,13 +58,17 @@ export class AdminVariantsController {
   }
 
   @Post()
-  async create(@Body() body: Record<string, any>) {
-    return { data: await this.prisma.productVariant.create({ data: pick(body) as any }) };
+  async create(@CurrentAdmin() admin: AuthAdmin, @Body() body: Record<string, any>) {
+    const data = await this.prisma.productVariant.create({ data: pick(body) as any });
+    await this.audit.logAdminAction(admin.id, AuditAction.ADMIN_CREATE_VARIANT, "product_variant", data.id);
+    return { data };
   }
 
   @Patch(":id")
-  async update(@Param("id") id: string, @Body() body: Record<string, any>) {
-    return { data: await this.prisma.productVariant.update({ where: { id }, data: pick(body) }) };
+  async update(@CurrentAdmin() admin: AuthAdmin, @Param("id") id: string, @Body() body: Record<string, any>) {
+    const data = await this.prisma.productVariant.update({ where: { id }, data: pick(body) });
+    await this.audit.logAdminAction(admin.id, AuditAction.ADMIN_UPDATE_VARIANT, "product_variant", id);
+    return { data };
   }
 
   @Delete(":id")

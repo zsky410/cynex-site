@@ -1,14 +1,21 @@
 "use client";
 
-import { useEffect, useState } from "react";
+import Link from "next/link";
+import { useEffect, useMemo, useState } from "react";
 import { useRouter } from "next/navigation";
-import { ArrowDownLeft, ArrowUpRight, CreditCard, WalletCards } from "lucide-react";
+import {
+  ArrowDownLeft,
+  ArrowUpRight,
+  History,
+  Plus,
+  RefreshCw,
+  ShoppingCart,
+  Wallet,
+} from "lucide-react";
+import { AccountCard, AccountPageLayout } from "@/components/account/AccountUi";
 import { apiFetch, getToken, ApiError } from "@/lib/api";
-import { EmptyState } from "@/components/ui/empty-state";
-import { FieldLabel, TextInput } from "@/components/ui/form-field";
-import { Panel } from "@/components/ui/panel";
-import { SectionHeader } from "@/components/ui/section-header";
-import { formatVnd } from "@/lib/utils";
+import { WALLET_PRESET_AMOUNTS, WALLET_TXN_TYPE_LABEL } from "@/lib/wallet";
+import { cn, formatVnd } from "@/lib/utils";
 
 interface Txn {
   id: string;
@@ -19,19 +26,45 @@ interface Txn {
   createdAt: string;
 }
 
-const TYPE_LABEL: Record<string, string> = {
-  deposit: "Nạp tiền",
-  purchase: "Mua hàng",
-  refund: "Hoàn tiền",
-  admin_adjustment: "Điều chỉnh",
-};
+function txnIcon(type: string) {
+  switch (type) {
+    case "deposit":
+      return { Icon: ArrowDownLeft, className: "bg-sky-100 text-sky-700" };
+    case "purchase":
+      return { Icon: ShoppingCart, className: "bg-slate-100 text-slate-600" };
+    case "refund":
+      return { Icon: RefreshCw, className: "bg-emerald-100 text-emerald-700" };
+    default:
+      return { Icon: ArrowUpRight, className: "bg-violet-100 text-violet-700" };
+  }
+}
+
+function formatTxnTime(iso: string) {
+  const d = new Date(iso);
+  const now = new Date();
+  const sameDay =
+    d.getDate() === now.getDate() &&
+    d.getMonth() === now.getMonth() &&
+    d.getFullYear() === now.getFullYear();
+  const time = d.toLocaleTimeString("vi-VN", { hour: "2-digit", minute: "2-digit" });
+  if (sameDay) return `Hôm nay, ${time}`;
+  return d.toLocaleString("vi-VN", { day: "2-digit", month: "2-digit", year: "numeric", hour: "2-digit", minute: "2-digit" });
+}
 
 export default function WalletPage() {
   const router = useRouter();
   const [balance, setBalance] = useState<number | null>(null);
   const [txns, setTxns] = useState<Txn[]>([]);
-  const [amount, setAmount] = useState(50000);
+  const [amount, setAmount] = useState<number>(100_000);
+  const [customAmount, setCustomAmount] = useState("");
   const [error, setError] = useState<string | null>(null);
+  const [busy, setBusy] = useState(false);
+
+  const depositAmount = useMemo(() => {
+    const parsed = Number(customAmount.replace(/\D/g, ""));
+    if (customAmount.trim() && parsed >= 1000) return parsed;
+    return amount;
+  }, [amount, customAmount]);
 
   async function load() {
     const b = await apiFetch<{ balance: number }>("/wallet");
@@ -51,108 +84,169 @@ export default function WalletPage() {
 
   async function deposit() {
     setError(null);
+    setBusy(true);
     try {
       const res = await apiFetch<{ checkoutUrl: string }>("/wallet/deposit", {
         method: "POST",
-        body: JSON.stringify({ amount }),
+        body: JSON.stringify({ amount: depositAmount }),
       });
       window.location.href = res.checkoutUrl;
     } catch (e) {
       setError(e instanceof ApiError ? e.message : "Không tạo được giao dịch nạp");
+      setBusy(false);
     }
   }
 
-  if (balance === null) return <p className="text-sm text-slate-300">Đang tải ví...</p>;
+  if (balance === null) {
+    return (
+      <AccountPageLayout activeKey="wallet" title="Ví của tôi" subtitle="Đang tải...">
+        <div className="h-64 animate-pulse rounded-[20px] bg-white/60" />
+      </AccountPageLayout>
+    );
+  }
 
   return (
-    <section className="space-y-6">
-      <SectionHeader
-        eyebrow="Wallet"
-        title="Quản lý số dư và giao dịch Cynex"
-        description="Nạp tiền nhanh để thanh toán nội bộ, đồng thời giữ lại lịch sử biến động ví theo cách dễ đọc."
-      />
-
-      <div className="grid gap-6 xl:grid-cols-[0.9fr_1.1fr]">
-        <Panel className="relative overflow-hidden">
-          <div className="absolute inset-0 bg-[radial-gradient(circle_at_top_left,rgba(56,189,248,0.24),transparent_28%),radial-gradient(circle_at_80%_10%,rgba(168,85,247,0.16),transparent_24%)]" />
-          <div className="relative">
-            <div className="inline-flex items-center gap-2 rounded-full border border-white/10 bg-white/[0.05] px-3 py-1.5 text-xs uppercase tracking-[0.18em] text-slate-300">
-              <WalletCards className="size-4 text-cyan-300" />
-              Số dư hiện tại
+    <AccountPageLayout
+      activeKey="wallet"
+      title="Ví của tôi"
+      subtitle="Nạp tiền và theo dõi giao dịch thanh toán qua Ví Cynex."
+    >
+      <div className="grid gap-6 lg:grid-cols-[1fr_400px]">
+        <div className="space-y-6">
+          <section className="overflow-hidden rounded-[24px] bg-gradient-to-br from-sky-600 via-sky-700 to-cyan-800 p-7 text-white shadow-[0_20px_50px_rgba(10,116,184,0.35)]">
+            <div className="flex items-start justify-between">
+              <div>
+                <p className="text-sm font-medium text-sky-100">Số dư hiện tại</p>
+                <p className="mt-2 text-4xl font-bold tracking-tight">{formatVnd(balance)}</p>
+              </div>
+              <span className="flex h-11 w-11 items-center justify-center rounded-2xl bg-white/15 backdrop-blur">
+                <Wallet className="h-5 w-5" />
+              </span>
             </div>
-            <p className="mt-6 text-4xl font-semibold text-white md:text-5xl">{formatVnd(balance)}</p>
-            <p className="mt-3 max-w-sm text-sm leading-6 text-slate-300">
-              Ví Cynex phù hợp cho các lần mua lặp lại hoặc hoàn tiền nội bộ.
-            </p>
-          </div>
-        </Panel>
-
-        <Panel className="space-y-4">
-          <div>
-            <FieldLabel hint="payOS">Nạp tiền vào ví</FieldLabel>
-            <div className="flex flex-col gap-3 md:flex-row">
-              <TextInput
-                type="number"
-                min={1000}
-                step={1000}
-                value={amount}
-                onChange={(e) => setAmount(Number(e.target.value))}
-                className="md:max-w-xs"
-              />
-              <button onClick={deposit} className="button-primary md:w-auto">
-                <CreditCard className="size-4" />
-                Nạp tiền
-              </button>
+            <div className="mt-8 flex flex-wrap gap-3">
+              <a
+                href="#nap-tien"
+                className="inline-flex items-center gap-2 rounded-xl bg-white px-4 py-2.5 text-sm font-semibold text-sky-800 transition hover:bg-sky-50"
+              >
+                <Plus className="h-4 w-4" />
+                Nạp thêm
+              </a>
+              <a
+                href="#lich-su"
+                className="inline-flex items-center gap-2 rounded-xl bg-white/15 px-4 py-2.5 text-sm font-semibold text-white backdrop-blur transition hover:bg-white/25"
+              >
+                <History className="h-4 w-4" />
+                Lịch sử
+              </a>
             </div>
-          </div>
-          {error ? <p className="text-sm text-rose-300">{error}</p> : null}
-          <div className="rounded-[22px] border border-white/8 bg-white/[0.03] p-4 text-sm leading-6 text-slate-300">
-            Sau khi thanh toán thành công, số dư ví sẽ được cộng vào tài khoản để dùng cho đơn hàng kế tiếp hoặc hoàn tiền.
-          </div>
-        </Panel>
-      </div>
+          </section>
 
-      <Panel className="space-y-4">
-        <div className="flex items-center justify-between gap-3">
-          <h2 className="text-2xl font-semibold text-white">Lịch sử giao dịch</h2>
-        </div>
-        {txns.length ? (
-          <ul className="space-y-3">
-            {txns.map((t) => (
-              <li key={t.id} className="flex flex-col gap-3 rounded-[22px] border border-white/8 bg-white/[0.03] p-4 md:flex-row md:items-center md:justify-between">
-                <div className="inline-flex items-start gap-3">
-                  <span className={`rounded-full p-2 ${t.amount >= 0 ? "bg-emerald-400/10" : "bg-rose-400/10"}`}>
-                    {t.amount >= 0 ? (
-                      <ArrowDownLeft className="size-4 text-emerald-300" />
-                    ) : (
-                      <ArrowUpRight className="size-4 text-rose-300" />
+          <AccountCard id="nap-tien">
+            <h2 className="text-lg font-semibold text-sky-900">Nạp tiền nhanh</h2>
+            <p className="mt-1 text-sm text-slate-500">Thanh toán qua payOS — tối thiểu 1.000đ</p>
+
+            <div className="mt-5 grid grid-cols-2 gap-3 sm:grid-cols-4">
+              {WALLET_PRESET_AMOUNTS.map((preset) => {
+                const selected = !customAmount && amount === preset;
+                return (
+                  <button
+                    key={preset}
+                    type="button"
+                    onClick={() => {
+                      setAmount(preset);
+                      setCustomAmount("");
+                    }}
+                    className={cn(
+                      "rounded-xl border px-3 py-3 text-sm font-semibold transition",
+                      selected
+                        ? "border-sky-500 bg-sky-50 text-sky-800 ring-2 ring-sky-100"
+                        : "border-slate-200 text-slate-700 hover:border-sky-300",
                     )}
+                  >
+                    {formatVnd(preset)}
+                  </button>
+                );
+              })}
+            </div>
+
+            <div className="mt-4">
+              <label htmlFor="custom-amount" className="mb-1.5 block text-sm font-medium text-slate-700">
+                Nhập số tiền khác
+              </label>
+              <div className="flex overflow-hidden rounded-xl border border-slate-200 focus-within:border-sky-400 focus-within:ring-2 focus-within:ring-sky-100">
+                <input
+                  id="custom-amount"
+                  inputMode="numeric"
+                  placeholder="Ví dụ: 150000"
+                  value={customAmount}
+                  onChange={(e) => setCustomAmount(e.target.value.replace(/[^\d]/g, ""))}
+                  className="min-w-0 flex-1 px-3.5 py-2.5 text-sm outline-none"
+                />
+                <span className="flex items-center border-l border-slate-200 bg-slate-50 px-3 text-sm text-slate-500">
+                  VND
+                </span>
+              </div>
+            </div>
+
+            {error && (
+              <p className="mt-3 rounded-lg bg-red-50 px-3 py-2 text-sm text-red-700" role="alert">
+                {error}
+              </p>
+            )}
+
+            <button
+              type="button"
+              disabled={busy || depositAmount < 1000}
+              onClick={deposit}
+              className="mt-5 w-full rounded-xl bg-sky-700 py-3 text-sm font-semibold text-white shadow-[0_10px_30px_rgba(10,116,184,0.28)] transition hover:bg-sky-800 disabled:opacity-60"
+            >
+              {busy ? "Đang chuyển đến payOS..." : `Xác nhận nạp ${formatVnd(depositAmount)}`}
+            </button>
+          </AccountCard>
+        </div>
+
+        <AccountCard id="lich-su" className="lg:row-span-2">
+          <div className="mb-5 flex items-center justify-between gap-2">
+            <h2 className="text-lg font-semibold text-slate-900">Lịch sử giao dịch</h2>
+            <Link href="/profile" className="text-xs font-medium text-sky-700 hover:underline">
+              Tài khoản →
+            </Link>
+          </div>
+
+          <ul className="divide-y divide-slate-100">
+            {txns.map((t) => {
+              const { Icon, className } = txnIcon(t.type);
+              const positive = t.amount >= 0;
+              return (
+                <li key={t.id} className="flex gap-3 py-4 first:pt-0">
+                  <span className={cn("flex h-10 w-10 shrink-0 items-center justify-center rounded-full", className)}>
+                    <Icon className="h-4 w-4" />
                   </span>
-                  <div>
-                    <p className="font-medium text-white">{TYPE_LABEL[t.type] ?? t.type}</p>
-                    <p className="mt-1 text-xs text-slate-400">
-                      {new Date(t.createdAt).toLocaleString("vi-VN")}
-                      {t.description ? ` · ${t.description}` : ""}
+                  <div className="min-w-0 flex-1">
+                    <p className="text-sm font-semibold text-slate-800">
+                      {WALLET_TXN_TYPE_LABEL[t.type] ?? t.type}
                     </p>
+                    <p className="mt-0.5 text-xs text-slate-400">{formatTxnTime(t.createdAt)}</p>
+                    {t.description && (
+                      <p className="mt-1 truncate text-xs text-slate-500">{t.description}</p>
+                    )}
                   </div>
-                </div>
-                <div className="text-left md:text-right">
-                  <p className={t.amount >= 0 ? "font-semibold text-emerald-300" : "font-semibold text-rose-300"}>
-                    {t.amount >= 0 ? "+" : ""}
-                    {formatVnd(t.amount)}
-                  </p>
-                  <p className="mt-1 text-xs text-slate-500">Số dư sau giao dịch: {formatVnd(t.balanceAfter)}</p>
-                </div>
-              </li>
-            ))}
+                  <div className="shrink-0 text-right">
+                    <p className={cn("text-sm font-bold", positive ? "text-sky-700" : "text-slate-900")}>
+                      {positive ? "+" : ""}
+                      {formatVnd(t.amount)}
+                    </p>
+                    <p className="mt-1 text-[11px] text-slate-400">Ví Cynex</p>
+                  </div>
+                </li>
+              );
+            })}
+            {txns.length === 0 && (
+              <li className="py-8 text-center text-sm text-slate-500">Chưa có giao dịch nào.</li>
+            )}
           </ul>
-        ) : (
-          <EmptyState
-            title="Chưa có giao dịch nào"
-            description="Khi bạn nạp tiền, mua hàng hoặc nhận hoàn tiền, các biến động ví sẽ xuất hiện tại đây."
-          />
-        )}
-      </Panel>
-    </section>
+        </AccountCard>
+      </div>
+    </AccountPageLayout>
   );
 }

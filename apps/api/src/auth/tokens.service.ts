@@ -39,4 +39,10 @@ export class TokensService {
       secret: this.config.getOrThrow("JWT_ACCESS_SECRET"),
     });
   }
+
+  async verifyRefresh(token: string): Promise<{ sub: string; type: Principal }> {
+    return this.jwt.verifyAsync(token, {
+      secret: this.config.getOrThrow("JWT_REFRESH_SECRET"),
+    });
+  }
 }

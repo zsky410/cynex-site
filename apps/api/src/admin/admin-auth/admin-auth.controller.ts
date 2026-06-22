@@ -1,8 +1,10 @@
 import { Body, Controller, HttpCode, Post, UnauthorizedException } from "@nestjs/common";
 import { Throttle } from "@nestjs/throttler";
+import { AuditAction } from "@cynex/shared";
 import { PrismaService } from "../../prisma/prisma.service";
 import { TokensService } from "../../auth/tokens.service";
 import { verifyPassword } from "../../auth/password";
+import { AuditService } from "../../audit/audit.service";
 import { ZodValidationPipe } from "../../common/zod-validation.pipe";
 import { LoginSchema, type LoginDto } from "@cynex/shared";
 
@@ -11,6 +13,7 @@ export class AdminAuthController {
   constructor(
     private readonly prisma: PrismaService,
     private readonly tokens: TokensService,
+    private readonly audit: AuditService,
   ) {}
 
   @Throttle({ default: { limit: 10, ttl: 60_000 } })
@@ -25,6 +28,7 @@ export class AdminAuthController {
       throw new UnauthorizedException("Email hoặc mật khẩu không đúng");
     }
     const pair = await this.tokens.issue(admin.id, "admin", { email: admin.email, role: admin.role });
+    await this.audit.logAdminAction(admin.id, AuditAction.ADMIN_LOGIN, "admin", admin.id);
     return {
       accessToken: pair.accessToken,
       admin: { id: admin.id, email: admin.email, name: admin.name, role: admin.role },

@@ -2,11 +2,10 @@
 
 import Link from "next/link";
 import { useRouter, useSearchParams } from "next/navigation";
+import { ArrowRight, Lock, Mail } from "lucide-react";
 import { Suspense, useState } from "react";
-import { apiFetch, setToken, ApiError } from "@/lib/api";
-import { FieldLabel, TextInput } from "@/components/ui/form-field";
-import { Panel } from "@/components/ui/panel";
-import { StatusPill } from "@/components/ui/status-pill";
+import { AuthField, AuthLink, AuthShell, AuthSubmitButton } from "@/components/auth/AuthShell";
+import { apiFetch, setSession, ApiError } from "@/lib/api";
 
 function LoginForm() {
   const router = useRouter();
@@ -21,11 +20,11 @@ function LoginForm() {
     setError(null);
     setLoading(true);
     try {
-      const res = await apiFetch<{ accessToken: string }>("/auth/login", {
+      const res = await apiFetch<{ accessToken: string; refreshToken: string }>("/auth/login", {
         method: "POST",
         body: JSON.stringify({ email, password }),
       });
-      setToken(res.accessToken);
+      setSession(res.accessToken, res.refreshToken);
       router.push(params.get("next") ?? "/orders");
     } catch (e) {
       setError(e instanceof ApiError ? e.message : "Đăng nhập thất bại");
@@ -35,31 +34,57 @@ function LoginForm() {
   }
 
   return (
-    <Panel className="mx-auto max-w-md">
+    <AuthShell
+      title="Chào mừng trở lại"
+      subtitle="Truy cập vào hệ sinh thái kỹ thuật số cao cấp của bạn"
+      footer={
+        <>
+          Chưa có tài khoản? <AuthLink href="/register">Đăng ký ngay</AuthLink>
+        </>
+      }
+    >
       <form onSubmit={submit} className="space-y-5">
-        <StatusPill label="Auth" tone="info" />
-        <div>
-          <h1 className="mt-4 text-3xl font-semibold text-white">Đăng nhập</h1>
-          <p className="mt-2 text-sm text-slate-300">Theo dõi đơn, ví và hỗ trợ trong cùng tài khoản Cynex.</p>
-        </div>
-        <div>
-          <FieldLabel>Email</FieldLabel>
-          <TextInput type="email" placeholder="Email" value={email} onChange={(e) => setEmail(e.target.value)} required />
-        </div>
-        <div>
-          <FieldLabel>Mật khẩu</FieldLabel>
-          <TextInput type="password" placeholder="Mật khẩu" value={password} onChange={(e) => setPassword(e.target.value)} required />
-        </div>
-        {error ? <p className="text-sm text-rose-300">{error}</p> : null}
-        <button disabled={loading} className="button-primary w-full">
-          {loading ? "..." : "Đăng nhập"}
-        </button>
-        <div className="flex justify-between text-sm text-slate-400">
-          <Link href="/register">Tạo tài khoản</Link>
-          <Link href="/forgot-password">Quên mật khẩu?</Link>
-        </div>
+        <AuthField
+          id="login-email"
+          label="Địa chỉ Email"
+          type="email"
+          autoComplete="email"
+          placeholder="name@company.com"
+          icon={<Mail className="h-4 w-4" />}
+          value={email}
+          onChange={(e) => setEmail(e.target.value)}
+          required
+        />
+
+        <AuthField
+          id="login-password"
+          label="Mật khẩu"
+          type="password"
+          autoComplete="current-password"
+          placeholder="••••••••"
+          icon={<Lock className="h-4 w-4" />}
+          value={password}
+          onChange={(e) => setPassword(e.target.value)}
+          required
+          labelExtra={
+            <Link href="/forgot-password" className="text-xs font-medium text-[var(--cynex-primary)] hover:underline">
+              Quên mật khẩu?
+            </Link>
+          }
+        />
+
+        {error && (
+          <p className="rounded-lg bg-red-50 px-3 py-2 text-sm text-red-700" role="alert">
+            {error}
+          </p>
+        )}
+
+        <AuthSubmitButton loading={loading}>
+          {loading ? "Đang đăng nhập..." : "Đăng nhập"}
+          {!loading && <ArrowRight className="h-4 w-4" />}
+        </AuthSubmitButton>
       </form>
-    </Panel>
+    </AuthShell>
   );
 }
 
