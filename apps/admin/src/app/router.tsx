@@ -7,6 +7,13 @@ import LoginPage from "../features/auth/LoginPage";
 import { RequireAuth } from "../features/auth/RequireAuth";
 import { AdminLayout } from "../components/layout/AdminLayout";
 import { PageHeader } from "../components/common/PageHeader";
+import DashboardPage from "../features/dashboard/DashboardPage";
+import ProductFormPage from "../features/products/ProductFormPage";
+import ProductListPage from "../features/products/ProductListPage";
+import VariantFormPage from "../features/variants/VariantFormPage";
+import VariantListPage from "../features/variants/VariantListPage";
+import OrderListPage from "../features/orders/OrderListPage";
+import OrderDetailPage from "../features/orders/OrderDetailPage";
 
 function ShellOverviewPage() {
   return (
@@ -68,19 +75,39 @@ export const router = createBrowserRouter([
           },
           {
             path: "dashboard",
-            element: <ShellOverviewPage />,
+            element: <DashboardPage />,
           },
           {
             path: "products",
-            element: <ComingSoonPage />,
+            element: <ProductListPage />,
+          },
+          {
+            path: "products/new",
+            element: <ProductFormPage />,
+          },
+          {
+            path: "products/:productId/edit",
+            element: <ProductFormPage />,
           },
           {
             path: "variants",
-            element: <ComingSoonPage />,
+            element: <VariantListPage />,
+          },
+          {
+            path: "variants/new",
+            element: <VariantFormPage />,
+          },
+          {
+            path: "variants/:variantId/edit",
+            element: <VariantFormPage />,
           },
           {
             path: "orders",
-            element: <ComingSoonPage />,
+            element: <OrderListPage />,
+          },
+          {
+            path: "orders/:orderId",
+            element: <OrderDetailPage />,
           },
           {
             path: "users",
