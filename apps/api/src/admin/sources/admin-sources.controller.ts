@@ -1,5 +1,8 @@
 import { Body, Controller, Delete, Get, Param, Patch, Post, Query, UseGuards } from "@nestjs/common";
+import { AuditAction } from "@cynex/shared";
 import { AdminAuthGuard } from "../../auth/guards";
+import { CurrentAdmin, AuthAdmin } from "../../common/current-user.decorator";
+import { AuditService } from "../../audit/audit.service";
 import { PrismaService } from "../../prisma/prisma.service";
 import { parseListQuery } from "../common/list-query";
 
@@ -30,7 +33,10 @@ function pick(b: Record<string, any>): Record<string, any> {
 @UseGuards(AdminAuthGuard)
 @Controller("admin/supply-sources")
 export class AdminSourcesController {
-  constructor(private readonly prisma: PrismaService) {}
+  constructor(
+    private readonly prisma: PrismaService,
+    private readonly audit: AuditService,
+  ) {}
 
   @Get()
   async list(@Query() q: Record<string, any>) {
@@ -52,13 +58,17 @@ export class AdminSourcesController {
   }
 
   @Post()
-  async create(@Body() b: Record<string, any>) {
-    return { data: await this.prisma.supplySource.create({ data: pick(b) as any }) };
+  async create(@CurrentAdmin() admin: AuthAdmin, @Body() b: Record<string, any>) {
+    const data = await this.prisma.supplySource.create({ data: pick(b) as any });
+    await this.audit.logAdminAction(admin.id, AuditAction.ADMIN_CREATE_SOURCE, "supply_source", data.id);
+    return { data };
   }
 
   @Patch(":id")
-  async update(@Param("id") id: string, @Body() b: Record<string, any>) {
-    return { data: await this.prisma.supplySource.update({ where: { id }, data: pick(b) }) };
+  async update(@CurrentAdmin() admin: AuthAdmin, @Param("id") id: string, @Body() b: Record<string, any>) {
+    const data = await this.prisma.supplySource.update({ where: { id }, data: pick(b) });
+    await this.audit.logAdminAction(admin.id, AuditAction.ADMIN_UPDATE_SOURCE, "supply_source", id);
+    return { data };
   }
 
   @Delete(":id")

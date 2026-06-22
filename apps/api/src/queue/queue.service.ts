@@ -23,10 +23,15 @@ export class QueueService implements OnModuleDestroy {
     this.alerts = new Queue(QUEUE.alerts, { connection });
   }
 
+  // ponytail: BullMQ rejects ":" in custom job ids — sanitize centrally so callers keep readable dedupe keys.
+  private bullJobId(jobId?: string): string | undefined {
+    return jobId?.replace(/:/g, "-");
+  }
+
   // jobId lets callers enforce idempotency (BullMQ dedupes by jobId).
   async enqueueEmail(name: EmailJobName, data: unknown, jobId?: string): Promise<void> {
     await this.email.add(name, data, {
-      jobId,
+      jobId: this.bullJobId(jobId),
       attempts: 5,
       backoff: { type: "exponential", delay: 5000 },
       removeOnComplete: 1000,
@@ -35,7 +40,11 @@ export class QueueService implements OnModuleDestroy {
   }
 
   async enqueueAlert(name: AlertJobName, data: unknown, jobId?: string): Promise<void> {
-    await this.alerts.add(name, data, { jobId, removeOnComplete: 100, removeOnFail: 100 });
+    await this.alerts.add(name, data, {
+      jobId: this.bullJobId(jobId),
+      removeOnComplete: 100,
+      removeOnFail: 100,
+    });
   }
 
   async onModuleDestroy(): Promise<void> {

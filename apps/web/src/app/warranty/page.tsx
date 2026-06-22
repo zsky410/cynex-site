@@ -3,7 +3,10 @@
 import Link from "next/link";
 import { Suspense, useEffect, useMemo, useState } from "react";
 import { useRouter, useSearchParams } from "next/navigation";
+import { Headphones, MessageSquare, Send } from "lucide-react";
+import { OrderCard, OrderPageLayout } from "@/components/orders/OrderUi";
 import { ApiError, apiFetch, apiUploadFile, getToken } from "@/lib/api";
+import { cn } from "@/lib/utils";
 
 const STATUS_LABEL: Record<string, string> = {
   open: "Mới tạo",
@@ -33,7 +36,6 @@ interface WarrantyDetail extends WarrantyListRow {
   messages: {
     id: string;
     authorType: string;
-    authorId?: string | null;
     message: string;
     createdAt: string;
   }[];
@@ -57,10 +59,10 @@ function WarrantyCasesClient() {
       return;
     }
     apiFetch<WarrantyListRow[]>("/warranty-cases")
-      .then((rows) => setCases(rows))
+      .then(setCases)
       .catch((e) => {
         if (e instanceof ApiError && e.status === 401) router.push("/login?next=/warranty");
-        else setError(e instanceof ApiError ? e.message : "Khong tai duoc danh sach bao hanh");
+        else setError(e instanceof ApiError ? e.message : "Không tải được danh sách bảo hành");
       });
   }, [router]);
 
@@ -73,7 +75,7 @@ function WarrantyCasesClient() {
     }
     apiFetch<WarrantyDetail>(`/warranty-cases/${resolvedSelectedId}`)
       .then(setDetail)
-      .catch((e) => setError(e instanceof ApiError ? e.message : "Khong tai duoc chi tiet case"));
+      .catch((e) => setError(e instanceof ApiError ? e.message : "Không tải được chi tiết case"));
   }, [resolvedSelectedId]);
 
   async function reply() {
@@ -97,38 +99,32 @@ function WarrantyCasesClient() {
       setCases((rows) =>
         rows.map((row) =>
           row.id === updated.id
-            ? {
-                ...row,
-                status: updated.status,
-                _count: { messages: updated.messages.length },
-              }
+            ? { ...row, status: updated.status, _count: { messages: updated.messages.length } }
             : row,
         ),
       );
       setMessage("");
       setFiles([]);
     } catch (e) {
-      setError(e instanceof ApiError ? e.message : "Khong gui duoc phan hoi");
+      setError(e instanceof ApiError ? e.message : "Không gửi được phản hồi");
     } finally {
       setBusy(false);
     }
   }
 
   return (
-    <section className="space-y-6">
-      <div className="flex items-end justify-between gap-4">
-        <div>
-          <p className="text-xs uppercase tracking-[0.2em] text-slate-500">Warranty</p>
-          <h1 className="mt-2 text-2xl font-bold">Yeu cau ho tro / bao hanh</h1>
-        </div>
-        <Link href="/orders" className="text-sm text-brand">
-          Quay lai don hang
-        </Link>
-      </div>
+    <OrderPageLayout
+      activeKey="support"
+      title="Yêu cầu hỗ trợ / bảo hành"
+      subtitle="Theo dõi và phản hồi các case hỗ trợ của bạn."
+      backHref="/orders"
+      backLabel="Quay lại đơn hàng"
+    >
+      {error && (
+        <p className="mb-6 rounded-xl border border-red-200 bg-red-50 px-4 py-3 text-sm text-red-700">{error}</p>
+      )}
 
-      {error && <p className="rounded-xl border border-red-200 bg-red-50 px-4 py-3 text-sm text-red-700">{error}</p>}
-
-      <div className="grid gap-6 lg:grid-cols-[320px,1fr]">
+      <div className="grid gap-6 lg:grid-cols-[320px_1fr]">
         <div className="space-y-3">
           {cases.map((item) => {
             const active = item.id === resolvedSelectedId;
@@ -137,44 +133,53 @@ function WarrantyCasesClient() {
                 key={item.id}
                 type="button"
                 onClick={() => router.push(`/warranty?id=${item.id}`)}
-                className={`w-full rounded-2xl border p-4 text-left transition ${
-                  active ? "border-brand bg-amber-50" : "bg-white hover:border-slate-300"
-                }`}
+                className={cn(
+                  "w-full rounded-[20px] border p-4 text-left transition",
+                  active
+                    ? "border-sky-300 bg-sky-50 shadow-sm"
+                    : "border-slate-200/80 bg-white hover:border-sky-200",
+                )}
               >
-                <p className="text-sm font-semibold">
-                  {item.orderItem.product.name} - {item.orderItem.variant.name}
+                <p className="text-sm font-semibold text-slate-900">
+                  {item.orderItem.product.name} — {item.orderItem.variant.name}
                 </p>
-                <p className="mt-1 text-xs text-slate-500">Don #{item.order.orderCode}</p>
-                <p className="mt-2 text-sm text-slate-700">{STATUS_LABEL[item.status] ?? item.status}</p>
-                <p className="mt-1 text-xs text-slate-500">
-                  {item._count.messages} tin nhan · {new Date(item.createdAt).toLocaleString("vi-VN")}
+                <p className="mt-1 text-xs text-slate-500">Đơn #{item.order.orderCode}</p>
+                <p className="mt-2 text-sm text-sky-800">{STATUS_LABEL[item.status] ?? item.status}</p>
+                <p className="mt-1 text-xs text-slate-400">
+                  {item._count.messages} tin nhắn · {new Date(item.createdAt).toLocaleString("vi-VN")}
                 </p>
               </button>
             );
           })}
           {cases.length === 0 && (
-            <div className="rounded-2xl border bg-white p-6 text-sm text-slate-500">
-              Chua co yeu cau nao. Ban co the mo case tu trang chi tiet don hang da giao.
-            </div>
+            <OrderCard>
+              <div className="flex gap-3">
+                <Headphones className="h-5 w-5 shrink-0 text-sky-600" />
+                <p className="text-sm text-slate-500">
+                  Chưa có yêu cầu nào. Bạn có thể mở case từ trang chi tiết đơn hàng đã giao.
+                </p>
+              </div>
+            </OrderCard>
           )}
         </div>
 
-        <div className="rounded-2xl border bg-white p-6">
+        <OrderCard>
           {!detail ? (
-            <p className="text-sm text-slate-500">Chon mot case de xem chi tiet.</p>
+            <p className="text-sm text-slate-500">Chọn một case để xem chi tiết.</p>
           ) : (
             <div className="space-y-5">
               <div>
-                <p className="text-xs uppercase tracking-[0.2em] text-slate-500">Case #{detail.id}</p>
-                <h2 className="mt-2 text-xl font-semibold">
-                  {detail.orderItem.product.name} - {detail.orderItem.variant.name}
+                <p className="text-xs font-semibold uppercase tracking-[0.16em] text-slate-400">Case</p>
+                <h2 className="mt-2 text-xl font-semibold text-slate-900">
+                  {detail.orderItem.product.name} — {detail.orderItem.variant.name}
                 </h2>
                 <p className="mt-2 text-sm text-slate-600">
-                  Trang thai: <span className="font-medium">{STATUS_LABEL[detail.status] ?? detail.status}</span>
+                  Trạng thái:{" "}
+                  <span className="font-semibold text-sky-800">{STATUS_LABEL[detail.status] ?? detail.status}</span>
                 </p>
                 {detail.adminNote ? (
-                  <p className="mt-2 rounded-xl bg-slate-50 p-3 text-sm text-slate-700">
-                    Ghi chu admin: {detail.adminNote}
+                  <p className="mt-3 rounded-xl bg-slate-50 p-3 text-sm text-slate-700">
+                    Ghi chú admin: {detail.adminNote}
                   </p>
                 ) : null}
               </div>
@@ -183,66 +188,70 @@ function WarrantyCasesClient() {
                 {detail.messages.map((row) => (
                   <div
                     key={row.id}
-                    className={`rounded-2xl p-4 text-sm ${
-                      row.authorType === "admin" ? "bg-amber-50" : "bg-slate-50"
-                    }`}
+                    className={cn(
+                      "rounded-2xl p-4 text-sm",
+                      row.authorType === "admin" ? "border border-sky-100 bg-sky-50" : "bg-slate-50",
+                    )}
                   >
                     <div className="mb-2 flex items-center justify-between gap-3 text-xs text-slate-500">
-                      <span>{row.authorType === "admin" ? "Admin" : "Ban"}</span>
+                      <span className="inline-flex items-center gap-1.5 font-medium">
+                        <MessageSquare className="h-3.5 w-3.5" />
+                        {row.authorType === "admin" ? "Admin" : "Bạn"}
+                      </span>
                       <span>{new Date(row.createdAt).toLocaleString("vi-VN")}</span>
                     </div>
-                    <p className="whitespace-pre-wrap">{row.message}</p>
+                    <p className="whitespace-pre-wrap leading-relaxed text-slate-700">{row.message}</p>
                   </div>
                 ))}
               </div>
 
               {!["resolved", "rejected", "closed"].includes(detail.status) && (
-                <div className="rounded-2xl border bg-slate-50 p-4">
-                  <label className="mb-2 block text-sm font-medium">Phan hoi them</label>
+                <div className="rounded-2xl border border-slate-200 bg-slate-50/80 p-4">
+                  <label className="mb-2 block text-sm font-medium text-slate-800">Phản hồi thêm</label>
                   <textarea
-                    className="min-h-32 w-full rounded-xl border bg-white px-3 py-2"
+                    className="min-h-32 w-full rounded-xl border border-slate-200 bg-white px-3 py-2 text-sm outline-none focus:border-sky-400 focus:ring-2 focus:ring-sky-100"
                     value={message}
                     onChange={(e) => setMessage(e.target.value)}
-                    placeholder="Cap nhat tinh trang moi, ket qua ban thu lai, anh chup man hinh..."
+                    placeholder="Cập nhật tình trạng mới, kết quả thử lại, ảnh chụp màn hình..."
                     disabled={busy}
                   />
-                  <label className="mb-2 mt-4 block text-sm font-medium">Dinh kem them</label>
+                  <label className="mb-2 mt-4 block text-sm font-medium text-slate-800">Đính kèm thêm</label>
                   <input
-                    className="block w-full text-sm"
+                    className="block w-full text-sm text-slate-600"
                     type="file"
                     multiple
                     accept=".png,.jpg,.jpeg,.webp,.pdf,.txt"
                     onChange={(e) => setFiles(Array.from(e.target.files ?? []))}
                     disabled={busy}
                   />
-                  {files.length > 0 ? (
-                    <ul className="mt-3 space-y-1 text-xs text-slate-600">
-                      {files.map((file) => (
-                        <li key={`${file.name}-${file.size}`}>{file.name} - {(file.size / 1024).toFixed(1)} KB</li>
-                      ))}
-                    </ul>
-                  ) : null}
                   <button
-                    className="mt-4 rounded-xl bg-brand px-4 py-2 text-white disabled:opacity-60"
+                    className="mt-4 inline-flex items-center gap-2 rounded-xl bg-sky-700 px-4 py-2.5 text-sm font-semibold text-white disabled:opacity-60"
                     type="button"
                     disabled={busy || !message.trim()}
                     onClick={reply}
                   >
-                    {busy ? "Dang gui..." : "Gui phan hoi"}
+                    <Send className="h-4 w-4" />
+                    {busy ? "Đang gửi..." : "Gửi phản hồi"}
                   </button>
                 </div>
               )}
             </div>
           )}
-        </div>
+        </OrderCard>
       </div>
-    </section>
+    </OrderPageLayout>
   );
 }
 
 export default function WarrantyCasesPage() {
   return (
-    <Suspense fallback={<p>Dang tai...</p>}>
+    <Suspense
+      fallback={
+        <OrderPageLayout title="Yêu cầu hỗ trợ / bảo hành" subtitle="Đang tải...">
+          <div className="h-40 animate-pulse rounded-[20px] bg-white/60" />
+        </OrderPageLayout>
+      }
+    >
       <WarrantyCasesClient />
     </Suspense>
   );

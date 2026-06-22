@@ -30,6 +30,10 @@ coverage/
 backups/
 .data/
 Thumbs.db
+*.tmp
+*.bak
+*.orig
+*.rej
 
 # cursor / IDE (keep .cursor/rules for project conventions)
 .cursor/settings.json

@@ -2,10 +2,10 @@ import { ConflictException, Injectable, UnauthorizedException } from "@nestjs/co
 import { ConfigService } from "@nestjs/config";
 import { createHash, randomBytes } from "node:crypto";
 import { PrismaService } from "../prisma/prisma.service";
-import { TokensService, TokenPair } from "./tokens.service";
+import { TokensService, TokenPair, type Principal } from "./tokens.service";
 import { QueueService, EMAIL_JOB } from "../queue/queue.service";
 import { hashPassword, verifyPassword } from "./password";
-import type { RegisterDto, LoginDto } from "@cynex/shared";
+import type { RegisterDto, LoginDto, ChangePasswordDto } from "@cynex/shared";
 import { EmailType } from "@cynex/shared";
 
 const RESET_TTL_MS = 60 * 60 * 1000; // 1 hour
@@ -94,6 +94,34 @@ export class AuthService {
         data: { usedAt: new Date() },
       }),
     ]);
+    return { ok: true };
+  }
+
+  async refresh(refreshToken: string): Promise<TokenPair> {
+    let payload: { sub: string; type: Principal };
+    try {
+      payload = await this.tokens.verifyRefresh(refreshToken);
+    } catch {
+      throw new UnauthorizedException("Phiên đăng nhập đã hết hạn");
+    }
+    if (payload.type === "user") {
+      const user = await this.prisma.user.findUnique({ where: { id: payload.sub } });
+      if (!user || user.isLocked) throw new UnauthorizedException("Phiên đăng nhập đã hết hạn");
+      return this.tokens.issue(user.id, "user", { email: user.email });
+    }
+    const admin = await this.prisma.admin.findUnique({ where: { id: payload.sub } });
+    if (!admin || !admin.isActive) throw new UnauthorizedException("Phiên đăng nhập đã hết hạn");
+    return this.tokens.issue(admin.id, "admin", { email: admin.email, role: admin.role });
+  }
+
+  async changePassword(userId: string, dto: ChangePasswordDto): Promise<{ ok: true }> {
+    const user = await this.prisma.user.findUniqueOrThrow({ where: { id: userId } });
+    const ok = await verifyPassword(user.passwordHash, dto.currentPassword);
+    if (!ok) throw new UnauthorizedException("Mật khẩu hiện tại không đúng");
+    await this.prisma.user.update({
+      where: { id: userId },
+      data: { passwordHash: await hashPassword(dto.newPassword) },
+    });
     return { ok: true };
   }
 }

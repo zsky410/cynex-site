@@ -1,335 +1,357 @@
-# UI/UX Prototype Guideline — Cynex Digital Premium Store
+# Cynex UI/UX Guidelines — Modern SaaS Marketplace
 
-## Bản gọn 12 screen, tối ưu conversion
+## 1. Style Direction
 
-## 1. Nguyên tắc thiết kế chính
+### Style Name
 
-Cynex không nên giống một shop bán tài khoản rối rắm. Giao diện cần giống một **premium digital service platform**:
+**Modern SaaS Marketplace with Product Library Influence**
 
-```txt
-Sạch
-Hiện đại
-Tối giản
-Rõ trạng thái
-Mua nhanh
-Ít thông tin thừa
-Mobile-first
-```
+### Inspired by
 
-Mỗi màn chỉ nên trả lời các câu hỏi user thật sự quan tâm:
+* Linear
+* Raycast
+* Clerk
+* Lemon Squeezy
+* Resend
+* Vercel dashboard
+* Modern SaaS landing pages
 
-```txt
-Sản phẩm này là gì?
-Giá bao nhiêu?
-Nhận hàng kiểu gì?
-Xử lý mất bao lâu?
-Bảo hành thế nào?
-Thanh toán bằng gì?
-Đơn của tôi đang ở đâu?
-Thông tin đã giao nằm ở đâu?
-Nếu lỗi thì bảo hành ra sao?
-```
+### Mục tiêu cảm giác
 
-Không nhồi quá nhiều:
+Cynex không nên nhìn giống một web bán account thủ công, cũng không nên giống marketplace game key quá đông thông tin.
 
-```txt
-Trust card lặp lại
-Icon trang trí quá nhiều
-Banner phụ
-Mô tả dài
-Thông tin marketing chung chung
-Section không giúp user mua hàng
-```
+Cảm giác cần đạt:
+
+* Sạch
+* Hiện đại
+* Tin cậy
+* Premium
+* Mua nhanh
+* Trạng thái rõ
+* Ít rối mắt
+* Gần với một nền tảng dịch vụ số hơn là shop truyền thống
+
+### Không đi theo style
+
+Tránh các hướng sau:
+
+* Gaming marketplace
+* Dark cyberpunk
+* Neon-heavy
+* Shopee/Lazada clone
+* Web bán key rẻ tiền
+* Dashboard quá kỹ thuật
+* Landing page quá nhiều text
+* Glassmorphism nặng
+* 3D quá phức tạp
 
 ---
 
-# 2. Visual direction
+# 2. Brand System
 
-## 2.1. Style
+## 2.1. Main Brand Color
+
+Logo Cynex có màu cyan-blue sáng. Dùng màu này làm accent chính.
+
+Gợi ý token:
 
 ```txt
-Dark-first
-Premium SaaS
-Card-based
-Subtle gradient
-Clean tech
-Ít neon
-Ít hiệu ứng
+Primary / Cynex Blue: #0EA5E9 hoặc #1DA1F2
+Primary Dark: #0284C7
+Primary Light: #E0F2FE
+Primary Soft Background: #F0F9FF
 ```
 
-## 2.2. Color
+## 2.2. Neutral Colors
+
+Light theme nên dùng nền trắng/off-white.
 
 ```txt
-Background: #070A12
-Surface: #0D111C
-Surface elevated: #121827
-Border: #222A3A
-Text chính: #F8FAFC
-Text phụ: #94A3B8
-Primary: #38BDF8
-Accent: #A855F7
-Success: #22C55E
+Background: #FFFFFF
+Page Background: #F8FAFC
+Surface: #FFFFFF
+Surface Soft: #F1F5F9
+Border: #E2E8F0
+Text Primary: #0F172A
+Text Secondary: #475569
+Text Muted: #94A3B8
+```
+
+## 2.3. Status Colors
+
+```txt
+Success: #16A34A
+Success Background: #DCFCE7
+
 Warning: #F59E0B
+Warning Background: #FEF3C7
+
 Danger: #EF4444
+Danger Background: #FEE2E2
+
+Info: #0EA5E9
+Info Background: #E0F2FE
+
+Purple: #7C3AED
+Purple Background: #F3E8FF
 ```
 
-## 2.3. Typography
+## 2.4. Color Usage Rule
+
+Cynex Blue không nên phủ toàn bộ web. Chỉ dùng cho:
+
+* CTA chính
+* Active navigation
+* Selected card
+* Link quan trọng
+* Focus ring
+* Icon highlight
+* Price hoặc key accent nếu cần
+
+Tỷ lệ màu khuyến nghị:
 
 ```txt
-Font: Inter / Geist / Manrope
-Heading: 700–800
-Body: 400–500
-Price: 700
-Code, order code, key: mono font
-```
-
-## 2.4. Component style
-
-```txt
-Card radius: 20px
-Button radius: 12px
-Input radius: 12px
-Border mỏng
-Hover nhẹ
-Không dùng shadow quá nặng
-Không dùng glow quá nhiều
+90% white / neutral
+7% blue accent
+3% status colors
 ```
 
 ---
 
-# 3. UX rules quan trọng
+# 3. Typography
 
-## 3.1. Không hứa giao tự động nếu chưa có
+## 3.1. Font
 
-Vì MVP là admin xử lý thủ công, mọi nơi cần dùng copy rõ:
+Ưu tiên:
 
 ```txt
-Đã thanh toán - chờ xử lý
-Admin đang xử lý đơn hàng
-Thông tin sử dụng sẽ được gửi sau khi hoàn tất
+Inter
+Geist Sans
+Manrope
 ```
 
-Không dùng:
+Nếu dùng Next.js, gợi ý:
 
 ```txt
-Giao ngay lập tức
-Tự động nhận hàng
-Hoàn tất đơn hàng
+Geist Sans cho UI
+Geist Mono cho order code, key, transaction code
 ```
 
-nếu admin chưa giao hàng.
+## 3.2. Font Hierarchy
 
-## 3.2. Ưu tiên mua nhanh
-
-Product detail phải có:
+### Hero title
 
 ```txt
-Tên sản phẩm
-Variant/gói
-Giá
-Thời gian xử lý
-Bảo hành
-CTA mua ngay
+Desktop: 56–72px
+Mobile: 36–44px
+Weight: 700–800
+Line-height: 1.05–1.15
 ```
 
-Không đẩy CTA xuống quá sâu.
-
-## 3.3. Mobile-first
-
-Trên mobile:
+### Page title
 
 ```txt
-CTA mua hàng sticky bottom
-Filter dùng bottom sheet
-Card 1 column
-Thông tin đơn rõ
-QR thanh toán đủ lớn
-Copy account/key dễ bấm
+Desktop: 36–44px
+Mobile: 28–34px
+Weight: 700
 ```
 
-## 3.4. Thông tin nhạy cảm
-
-Account/key/password:
+### Section title
 
 ```txt
-Mặc định che
-Có nút hiện/ẩn
-Có nút copy
-Không hiển thị nếu đơn chưa delivered
-Không show recovery info nếu không cần
+Desktop: 24–32px
+Mobile: 22–26px
+Weight: 700
+```
+
+### Card title
+
+```txt
+18–20px
+Weight: 600–700
+```
+
+### Body
+
+```txt
+15–16px
+Weight: 400–500
+Line-height: 1.5–1.7
+```
+
+### Caption / metadata
+
+```txt
+12–14px
+Color: Text Secondary hoặc Muted
 ```
 
 ---
 
-# 4. Danh sách 12 screen prototype
+# 4. Layout System
 
-## Screen 1 — Homepage
-
-Route:
+## 4.1. Container
 
 ```txt
-/
+Max width: 1200–1280px
+Desktop padding: 32px
+Tablet padding: 24px
+Mobile padding: 16px
 ```
 
-Mục tiêu:
+## 4.2. Spacing
+
+Dùng spacing thoáng, tránh nhồi.
 
 ```txt
-Cho user hiểu Cynex bán gì và dẫn user đi xem sản phẩm nhanh.
+Section gap desktop: 72–96px
+Section gap mobile: 48–64px
+Card gap: 16–24px
+Form field gap: 16px
 ```
+
+## 4.3. Radius
+
+```txt
+Small: 8px
+Button/Input: 12px
+Card: 20px
+Hero visual: 28–32px
+Modal: 24px
+```
+
+## 4.4. Shadow
+
+Dùng shadow rất nhẹ, kiểu SaaS clean.
+
+```txt
+Card shadow: subtle
+Hover shadow: slightly stronger
+Avoid heavy ecommerce shadows
+```
+
+Giao diện nên dựa nhiều vào:
+
+* White space
+* Border nhẹ
+* Typography
+* Blue accent
+
+thay vì đổ bóng quá nặng.
+
+---
+
+# 5. Global Navigation
+
+## 5.1. Header Desktop
+
+Header nên sticky hoặc semi-sticky.
+
+Gồm:
+
+```txt
+Logo Cynex
+Sản phẩm
+Hướng dẫn
+Đơn hàng
+Ví của tôi
+Hỗ trợ
+Search box
+Login/User menu
+```
+
+Nếu user chưa login:
+
+```txt
+Đăng nhập
+Đăng ký hoặc CTA chính
+```
+
+Nếu user đã login:
+
+```txt
+Ví của tôi
+Avatar/User menu
+```
+
+## 5.2. Header Mobile
+
+Mobile nên đơn giản:
+
+```txt
+Logo
+Search icon
+Cart/Order icon nếu có
+Menu button
+```
+
+Menu mobile mở dạng drawer hoặc sheet.
+
+## 5.3. Header Style
+
+```txt
+Height desktop: 72–80px
+Height mobile: 60–64px
+Background: white hoặc white/80 backdrop-blur
+Border bottom: 1px solid #E2E8F0
+```
+
+Không nên làm header quá cao hoặc quá nhiều icon.
+
+---
+
+# 6. Global Components
+
+## 6.1. Product Card
+
+Product card là component quan trọng nhất.
 
 Nên có:
 
 ```txt
-Header
-Hero ngắn
-Search sản phẩm
-Category chips
-Sản phẩm nổi bật
-Cách mua 4 bước
-Footer gọn
+App icon/image
+Badge nhỏ nếu cần
+Product name
+Short description 1 dòng
+Processing time
+Warranty
+Price from
+CTA "Xem gói"
 ```
 
 Không nên có:
 
 ```txt
-Quá nhiều thống kê
-Quá nhiều trust card
-Nhiều banner phụ
-Carousel dài
-Review giả/lặp lại
+Quá nhiều badge
+Rating giả
+Mô tả dài
+Thông tin kỹ thuật không cần
+Nhiều CTA
 ```
 
-Hero content:
+Layout card:
 
 ```txt
-Headline:
-Nâng cấp app premium nhanh, rõ trạng thái, có bảo hành.
-
-Subtitle:
-Chọn gói, thanh toán, theo dõi đơn và xem thông tin sử dụng trong tài khoản Cynex.
-
-CTA:
-Khám phá sản phẩm
-Xem hướng dẫn mua
+Top: icon + badge optional
+Middle: name + description
+Info: processing time + warranty
+Bottom: price + CTA
 ```
 
-Cách mua 4 bước:
+Hover:
 
 ```txt
-1. Chọn gói
-2. Thanh toán
-3. Admin xử lý
-4. Nhận thông tin
+Lift nhẹ
+Border blue nhẹ
+Shadow nhẹ
+CTA rõ hơn
 ```
 
----
+## 6.2. Variant Card
 
-## Screen 2 — Product Listing
-
-Route:
-
-```txt
-/products
-```
-
-Mục tiêu:
-
-```txt
-Giúp user tìm sản phẩm nhanh và so sánh sản phẩm cơ bản.
-```
+Dùng trong product detail.
 
 Nên có:
-
-```txt
-Search
-Category chips
-Filter đơn giản
-Sort
-Product grid
-Pagination
-```
-
-Filter chỉ cần:
-
-```txt
-Danh mục
-Khoảng giá
-Hình thức bán
-Thời hạn
-```
-
-Không nên có:
-
-```txt
-Quá nhiều filter nhỏ
-Sidebar quá dài
-Thông số user không quan tâm
-Card sản phẩm quá nhiều badge
-```
-
-Product card chỉ cần:
-
-```txt
-Icon/ảnh
-Tên sản phẩm
-Mô tả 1 dòng
-Giá từ
-Số gói
-Badge bảo hành
-CTA Xem gói
-```
-
----
-
-## Screen 3 — Product Detail
-
-Route:
-
-```txt
-/products/[slug]
-```
-
-Mục tiêu:
-
-```txt
-Giúp user chọn đúng gói và mua ngay.
-```
-
-Nên có:
-
-```txt
-Ảnh/icon sản phẩm
-Tên sản phẩm
-Mô tả ngắn
-Lợi ích chính 3–5 dòng
-Variant selector
-Giá
-Thời gian xử lý
-Bảo hành
-Form thông tin cần cung cấp nếu có
-CTA mua ngay
-```
-
-Không nên có:
-
-```txt
-Quá nhiều tab
-Quá nhiều ảnh thumbnail
-Mô tả dài lê thê
-Trust card lặp lại
-Review dài
-Section phụ quá nhiều
-```
-
-Layout khuyến nghị:
-
-```txt
-Left: Product visual
-Center: Product info + variant cards
-Right: Buy box
-```
-
-Variant card chỉ cần:
 
 ```txt
 Thời hạn
@@ -339,143 +361,555 @@ Xử lý dự kiến
 Bảo hành
 ```
 
-Buy box chỉ cần:
+Selected state:
 
 ```txt
-Sản phẩm/gói đã chọn
-Tổng tiền
-Thông tin cần cung cấp
-Button Mua ngay
+Border primary
+Background primary soft
+Check icon nhỏ
+```
+
+Không nên để variant trong dropdown nếu có nhiều gói. Card selector sẽ dễ hiểu hơn.
+
+## 6.3. Status Badge
+
+Badge phải rõ, ngắn.
+
+User-facing status:
+
+```txt
+Chờ thanh toán
+Đã thanh toán - chờ xử lý
+Đang xử lý
+Đã sẵn sàng
+Đã giao hàng
+Đã hoàn tiền
+Xử lý thất bại
+```
+
+Không hiển thị enum kỹ thuật như:
+
+```txt
+paid_waiting_admin
+assigned
+```
+
+## 6.4. Order Timeline
+
+Timeline nên có 4–5 bước:
+
+```txt
+Đã tạo đơn
+Đã thanh toán
+Admin đang xử lý
+Đã giao hàng
+```
+
+Nếu đơn lỗi hoặc hoàn tiền thì hiển thị state riêng.
+
+Timeline cần dễ hiểu trên mobile.
+
+## 6.5. Secret Field
+
+Dùng để hiển thị password/key/account.
+
+Yêu cầu:
+
+```txt
+Mặc định che
+Có nút hiện/ẩn
+Có nút copy
+Có toast "Đã copy"
+Không hiển thị nếu đơn chưa delivered
+```
+
+## 6.6. Empty State
+
+Empty state nên thân thiện và có CTA.
+
+Ví dụ:
+
+```txt
+Bạn chưa có đơn hàng nào.
+Khám phá các gói premium đang có trên Cynex.
+[Khám phá sản phẩm]
+```
+
+---
+
+# 7. Animation & Interaction
+
+## 7.1. Animation Style
+
+Animation nên nhẹ, tinh tế, không gây rối.
+
+Dùng:
+
+```txt
+Fade in
+Slide up nhẹ
+Hover lift
+Button press
+Skeleton loading
+Micro transition
+```
+
+Không dùng:
+
+```txt
+Particles
+Parallax nặng
+3D animation phức tạp
+Video background
+Animation liên tục gây mỏi mắt
+```
+
+## 7.2. Timing
+
+```txt
+Hover transition: 150–200ms
+Page transition: 200–300ms
+Modal/sheet: 200–250ms
+Skeleton shimmer: subtle
+```
+
+## 7.3. Hero Visual Animation
+
+Hero visual có thể có:
+
+```txt
+Floating app icons rất nhẹ
+Flow line animation nhẹ
+Logo card hover/float nhẹ
+```
+
+Không nên animation quá rõ làm mất tập trung khỏi CTA.
+
+---
+
+# 8. Screen Guidelines
+
+## Screen 1 — Homepage
+
+### Route
+
+```txt
+/
+```
+
+### Mục tiêu
+
+User vào trang chủ phải hiểu ngay:
+
+```txt
+Cynex cung cấp dịch vụ premium/app account/key
+Có thể chọn gói, thanh toán, theo dõi đơn
+Admin xử lý và giao thông tin qua tài khoản
+```
+
+### Layout
+
+```txt
+Header
+Hero
+Popular Categories
+Featured Products
+Why Cynex
+Footer
+```
+
+### Hero
+
+Bên trái:
+
+```txt
+Headline
+Subtitle
+Primary CTA
+Secondary CTA
+3 trust mini items
+```
+
+Bên phải:
+
+```txt
+Cynex logo ở trung tâm
+Các app icon xung quanh
+Flow lines từ app về logo
+```
+
+Hero không nên có:
+
+```txt
+Dashboard đơn hàng
+Wallet card
+Nhiều số liệu
+Nhiều banner khuyến mãi
+```
+
+### Category Section
+
+Chỉ hiển thị 6–8 category.
+
+Ví dụ:
+
+```txt
+AI Tools
+Streaming
+Thiết kế
+Văn phòng
+Bảo mật
+Học tập
+Khác
+```
+
+### Featured Products
+
+Hiển thị 6 sản phẩm là đủ.
+
+Card sản phẩm nên sạch:
+
+```txt
+Icon
+Tên
+Mô tả ngắn
+Xử lý dự kiến
+Bảo hành
+Giá
+CTA
+```
+
+### Why Cynex
+
+Chỉ 4 lý do:
+
+```txt
+Xử lý nhanh chóng
+Bảo hành uy tín
+Thanh toán an toàn
+Hỗ trợ khi cần
+```
+
+Không cần stats như 10.000+ khách nếu chưa có số liệu thật.
+
+### Footer
+
+Footer gọn:
+
+```txt
+Logo
+Mô tả ngắn
+Sản phẩm
+Hỗ trợ
+Tài khoản
+Chính sách
+```
+
+---
+
+## Screen 2 — Product Listing
+
+### Route
+
+```txt
+/products
+```
+
+### Mục tiêu
+
+Giúp user tìm sản phẩm nhanh.
+
+### Layout Desktop
+
+```txt
+Page header
+Search bar lớn
+Category chips
+Filter/sort row
+Product grid
+Pagination
+```
+
+Có thể dùng sidebar filter nếu số lượng sản phẩm nhiều, nhưng MVP nên giữ đơn giản.
+
+### Layout Mobile
+
+```txt
+Search
+Category horizontal scroll
+Filter button mở bottom sheet
+Product list/grid
+```
+
+### Filters
+
+Chỉ cần:
+
+```txt
+Danh mục
+Khoảng giá
+Hình thức bán
+Thời hạn
+```
+
+Không cần quá nhiều filter ngay MVP.
+
+### Product Grid
+
+Desktop:
+
+```txt
+4 columns hoặc 5 columns tùy card size
+```
+
+Tablet:
+
+```txt
+2–3 columns
 ```
 
 Mobile:
 
 ```txt
-Sticky bottom bar: Giá + Mua ngay
+1–2 columns
 ```
+
+### Product Card
+
+Nội dung:
+
+```txt
+Icon
+Tên sản phẩm
+Mô tả ngắn
+Giá từ
+Bảo hành
+Xử lý dự kiến
+CTA
+```
+
+---
+
+## Screen 3 — Product Detail
+
+### Route
+
+```txt
+/products/[slug]
+```
+
+### Mục tiêu
+
+User chọn đúng gói và bấm mua.
+
+### Layout Desktop
+
+```txt
+Left: Product visual
+Center: Product info + variant selector
+Right: Purchase box
+```
+
+### Layout Mobile
+
+```txt
+Product visual
+Product info
+Variant selector
+Form nếu có
+Sticky buy bar
+```
+
+### Product Info
+
+Nên có:
+
+```txt
+Tên sản phẩm
+Mô tả ngắn
+3–5 lợi ích chính
+Thông tin xử lý
+Thông tin bảo hành
+```
+
+Không nên có nhiều tab nếu nội dung ít.
+
+### Variant Selector
+
+Hiển thị dạng card.
+
+Mỗi variant:
+
+```txt
+Thời hạn
+Loại gói
+Giá
+Xử lý dự kiến
+Bảo hành
+```
+
+### Fulfillment Explanation
+
+Giải thích ngắn theo loại gói:
+
+```txt
+Nâng chính chủ
+Cấp tài khoản riêng
+Cấp tài khoản dùng chung
+Cấp key/license
+```
+
+Chỉ 1–2 câu, không viết dài.
+
+### Purchase Box
+
+Nên có:
+
+```txt
+Gói đã chọn
+Tổng tiền
+Thông tin cần cung cấp nếu có
+CTA Mua ngay
+```
+
+Nếu cần user nhập thông tin, form nằm ngay trong purchase box hoặc ngay trước CTA.
 
 ---
 
 ## Screen 4 — Checkout
 
-Route:
+### Route
 
 ```txt
 /checkout
 ```
 
-Mục tiêu:
+### Mục tiêu
+
+Xác nhận đơn và thanh toán.
+
+### Layout
+
+Desktop:
 
 ```txt
-Xác nhận đơn và chọn thanh toán.
+Left: Customer info + payment method
+Right: Order summary
 ```
 
-Nên có:
+Mobile:
 
 ```txt
-Tóm tắt đơn hàng
-Thông tin khách đã nhập
-Phương thức thanh toán
-Tổng tiền
-CTA thanh toán
+Order summary
+Customer info
+Payment method
+CTA
 ```
 
-Payment methods:
+### Sections
+
+```txt
+Order Summary
+Customer Information
+Payment Method
+Checkout CTA
+```
+
+### Payment Method
 
 ```txt
 payOS / VietQR
 Ví Cynex
 ```
 
-Không nên có:
+Nếu ví không đủ tiền:
 
 ```txt
-Form dài
-Upsell
-Coupon nếu chưa cần
-Nhiều bước checkout
-Nhiều text chính sách
+Hiển thị số dư hiện tại
+CTA Nạp thêm
 ```
 
-Copy quan trọng:
+### Copy quan trọng
+
+Phải nói rõ:
 
 ```txt
 Sau khi thanh toán thành công, đơn sẽ chuyển sang trạng thái chờ admin xử lý.
 ```
 
+Không dùng copy khiến user nghĩ đã nhận hàng ngay.
+
 ---
 
-## Screen 5 — Payment Pending / Success
+## Screen 5 — Payment Status
 
-Route:
+### Route
 
 ```txt
 /payment/status
 ```
 
-Có thể gom pending và success trong một màn theo state.
+### Mục tiêu
 
-Mục tiêu:
-
-```txt
 Cho user biết thanh toán đang ở trạng thái nào.
-```
 
-Pending state nên có:
+### Layout
+
+Center focused, không cần sidebar.
+
+### Pending State
 
 ```txt
 QR code
 Số tiền
 Mã đơn
-Countdown
-Button Tôi đã thanh toán
-Button Xem đơn hàng
+Thời gian còn lại
+CTA Tôi đã thanh toán
+CTA Xem đơn hàng
 ```
 
-Success state nên có:
+### Success State
 
 ```txt
 Icon success
 Thanh toán thành công
 Mã đơn
-Trạng thái: Chờ admin xử lý
-Button Xem đơn hàng
+Trạng thái tiếp theo: Chờ admin xử lý
+CTA Xem đơn hàng
 ```
 
-Không nên có:
+### Failed/Expired State
 
 ```txt
-Nhiều thông tin marketing
-Đẩy thêm sản phẩm quá sớm
-Copy gây hiểu nhầm là đã giao hàng
+Thông báo lỗi/hết hạn
+CTA Tạo thanh toán lại
+CTA Quay về đơn hàng
 ```
 
 ---
 
 ## Screen 6 — Order History
 
-Route:
+### Route
 
 ```txt
 /orders
 ```
 
-Mục tiêu:
+### Mục tiêu
+
+User xem danh sách đơn và trạng thái.
+
+### Layout
 
 ```txt
-Cho user xem toàn bộ đơn và trạng thái nhanh.
+Page header
+Status tabs
+Search order code
+Order list
 ```
 
-Nên có:
-
-```txt
-Tabs trạng thái
-Danh sách đơn
-Search mã đơn
-Filter thời gian đơn giản
-```
-
-Tabs:
+### Status Tabs
 
 ```txt
 Tất cả
@@ -486,115 +920,124 @@ Chờ xử lý
 Hoàn tiền
 ```
 
-Order card/list item:
+### Order Item
 
 ```txt
 Mã đơn
 Sản phẩm/gói
-Số tiền
+Tổng tiền
 Ngày mua
 Trạng thái
 CTA Xem chi tiết
 ```
 
-Không nên có:
-
-```txt
-Hiển thị quá nhiều metadata
-Thông tin nguồn hàng
-Thông tin nội bộ
-Layout card quá to
-```
+Không hiển thị source, cost, admin note hoặc thông tin nội bộ.
 
 ---
 
 ## Screen 7 — Order Detail
 
-Route:
+### Route
 
 ```txt
 /orders/[orderCode]
 ```
 
-Mục tiêu:
+### Mục tiêu
+
+User biết đơn đang ở đâu và xem thông tin giao hàng nếu đã có.
+
+### Layout
 
 ```txt
-User biết đơn đang ở đâu và xem thông tin giao hàng nếu có.
+Order Summary
+Timeline
+Payment Summary
+Delivery Information
+Support CTA
 ```
 
-Nên có:
+### Pending/Processing State
+
+Hiển thị:
 
 ```txt
-Mã đơn
-Status nổi bật
-Timeline trạng thái
-Tóm tắt sản phẩm
-Thanh toán
-Thông tin đã giao nếu delivered
-CTA bảo hành nếu delivered
+Trạng thái hiện tại
+Timeline
+Thông báo chờ xử lý
 ```
 
-Timeline:
+Copy gợi ý:
 
 ```txt
-Đã tạo đơn
-Đã thanh toán
-Admin đang xử lý
-Đã giao hàng
+Đơn của bạn đã được thanh toán và đang chờ admin xử lý. Cynex sẽ gửi email khi thông tin sử dụng sẵn sàng.
 ```
 
-Pending state copy:
+### Delivered State
+
+Hiển thị:
 
 ```txt
-Đơn đã thanh toán và đang chờ admin xử lý. Bạn sẽ nhận email khi thông tin sử dụng sẵn sàng.
-```
-
-Delivered state:
-
-```txt
-Account/key
+Thông tin tài khoản/key
 Hướng dẫn sử dụng
 Ngày hết hạn nếu có
-Nút copy
-Nút hiện/ẩn
-Nút yêu cầu bảo hành
+Bảo hành đến ngày nếu có
+Copy button
+Show/hide secret
+CTA Yêu cầu hỗ trợ
 ```
 
-Không nên có:
+### Security
+
+Thông tin nhạy cảm phải:
 
 ```txt
-Log kỹ thuật
-Payment raw info
-Thông tin source
-Quá nhiều card phụ
+Che mặc định
+Có nút hiện/ẩn
+Có nút copy
+Không hiển thị cho đơn chưa delivered
 ```
 
 ---
 
 ## Screen 8 — Wallet
 
-Route:
+### Route
 
 ```txt
 /wallet
 ```
 
-Mục tiêu:
+### Mục tiêu
+
+User xem số dư, nạp tiền, xem lịch sử ví.
+
+### Layout
 
 ```txt
-User xem số dư, nạp tiền và xem lịch sử ví.
+Balance Card
+Deposit Section
+Transaction History
 ```
 
-Nên có:
+### Balance Card
+
+Nổi bật nhưng không quá màu mè.
 
 ```txt
-Balance card
-Button nạp tiền
+Số dư ví
+CTA Nạp tiền
+```
+
+### Deposit Section
+
+```txt
+Input số tiền
 Quick amount chips
-Transaction list
+CTA Tạo thanh toán
 ```
 
-Quick amounts:
+Quick amount:
 
 ```txt
 50k
@@ -604,7 +1047,9 @@ Quick amounts:
 1M
 ```
 
-Transaction item:
+### Transaction History
+
+Mỗi item:
 
 ```txt
 Loại giao dịch
@@ -614,88 +1059,107 @@ Thời gian
 Số dư sau giao dịch
 ```
 
-Không nên có:
-
-```txt
-Biểu đồ phức tạp
-Analytics tài chính
-Quá nhiều thông tin ngân hàng
-```
+Không cần biểu đồ tài chính ở MVP.
 
 ---
 
-## Screen 9 — Login / Register
+## Screen 9 — Login
 
-Route:
+### Route
 
 ```txt
 /login
-/register
 ```
 
-Mục tiêu:
+### Mục tiêu
+
+Đăng nhập nhanh, không gây cản trở mua hàng.
+
+### Layout
 
 ```txt
-Đăng nhập/đăng ký nhanh, không cản trở mua hàng.
+Centered card
 ```
 
-Nên có:
+Gồm:
 
 ```txt
+Logo
+Title
 Email
 Password
 Forgot password
-Login/Register CTA
-Switch login/register
+Login CTA
+Register link
 ```
 
-Không nên có:
+Nếu user đến từ checkout, sau login phải quay lại checkout.
 
-```txt
-Form quá nhiều field
-Thông tin marketing quá dài
-Nhiều background gây rối
-```
+### Style
 
-Copy login:
+Nền light, card trắng, shadow nhẹ.
 
-```txt
-Đăng nhập để theo dõi đơn hàng, quản lý ví và xem thông tin đã mua.
-```
-
-Nếu user bị redirect từ checkout:
-
-```txt
-Sau khi đăng nhập, bạn sẽ quay lại bước thanh toán.
-```
+Không cần visual phức tạp.
 
 ---
 
-## Screen 10 — Warranty Create
+## Screen 10 — Register
 
-Route:
+### Route
+
+```txt
+/register
+```
+
+### Mục tiêu
+
+Tạo tài khoản nhanh.
+
+### Layout
+
+```txt
+Centered card
+```
+
+Gồm:
+
+```txt
+Logo
+Title
+Email
+Password
+Confirm Password
+Register CTA
+Login link
+```
+
+Không hỏi quá nhiều thông tin ngay từ đầu.
+
+---
+
+## Screen 11 — Warranty / Support
+
+### Route
 
 ```txt
 /support/new
 ```
 
-Mục tiêu:
+### Mục tiêu
+
+User báo lỗi hoặc yêu cầu hỗ trợ từ đơn đã mua.
+
+### Layout
 
 ```txt
-User báo lỗi sản phẩm đã mua.
-```
-
-Nên có:
-
-```txt
-Chọn đơn
-Chọn lý do
-Mô tả lỗi
-Upload ảnh nếu cần
+Order selector
+Reason selector
+Description
+Attachments
 Submit
 ```
 
-Reason options:
+### Reason Options
 
 ```txt
 Không đăng nhập được
@@ -706,171 +1170,109 @@ Cần hướng dẫn
 Lỗi khác
 ```
 
-Không nên có:
-
-```txt
-Form quá dài
-Hỏi thông tin đã có trong đơn
-Bắt user nhập lại account/key
-```
+Không hỏi lại thông tin hệ thống đã có như mã đơn nếu user đã vào từ order detail.
 
 ---
 
-## Screen 11 — Guide / How to Buy
+## Screen 12 — Account
 
-Route:
-
-```txt
-/guide
-```
-
-Mục tiêu:
-
-```txt
-Giải thích cách mua và cách nhận hàng.
-```
-
-Nên có:
-
-```txt
-4 bước mua hàng
-Cách thanh toán
-Cách nhận thông tin
-Cách yêu cầu bảo hành
-FAQ ngắn
-```
-
-FAQ chỉ cần 5–7 câu:
-
-```txt
-Sau khi thanh toán bao lâu nhận hàng?
-Thông tin được gửi ở đâu?
-Nếu tài khoản lỗi thì sao?
-Có thể thanh toán bằng ví không?
-Tôi có thể xem lại đơn ở đâu?
-```
-
-Không nên có:
-
-```txt
-Bài viết quá dài
-Nhiều chính sách pháp lý trong cùng màn
-Text dày đặc
-```
-
----
-
-## Screen 12 — Account Settings
-
-Route:
+### Route
 
 ```txt
 /account
 ```
 
-Mục tiêu:
+### Mục tiêu
+
+Quản lý tài khoản cơ bản.
+
+### Layout
 
 ```txt
-User quản lý thông tin cá nhân cơ bản.
+Profile Information
+Security Settings
+Quick Actions
 ```
 
-Nên có:
+### Profile
 
 ```txt
-Thông tin tài khoản
 Email
+Tên hiển thị nếu có
+Ngày tạo tài khoản
+```
+
+### Security
+
+```txt
 Đổi mật khẩu
-Liên kết nhanh đến đơn hàng
-Liên kết nhanh đến ví
-Logout
+Đăng xuất
 ```
 
-Không nên có:
+### Quick Actions
 
 ```txt
-Dashboard phức tạp
-Thống kê mua hàng quá chi tiết
-Thông tin không dùng tới
+Đơn hàng của tôi
+Ví của tôi
+Yêu cầu hỗ trợ
+```
+
+Không biến account page thành dashboard phức tạp.
+
+---
+
+# 9. Responsive Rules
+
+## Desktop
+
+Dùng layout rộng, nhiều whitespace.
+
+```txt
+Hero 2 columns
+Product detail 3 columns
+Checkout 2 columns
+```
+
+## Tablet
+
+```txt
+Hero vẫn có thể 2 columns
+Product grid 2–3 columns
+Product detail chuyển 2 columns
+```
+
+## Mobile
+
+```txt
+Single column
+CTA sticky ở product detail
+Filter dùng bottom sheet
+Header gọn
+Touch target tối thiểu 44px
 ```
 
 ---
 
-# 5. Component cần có
+# 10. Accessibility Rules
 
-## 5.1. Global
-
-```txt
-AppHeader
-AppFooter
-Container
-SectionHeader
-StatusBadge
-PriceText
-EmptyState
-LoadingSkeleton
-Toast
-ConfirmDialog
-```
-
-## 5.2. Commerce
+Tối thiểu cần:
 
 ```txt
-ProductCard
-VariantCard
-BuyBox
-CheckoutSummary
-PaymentMethodCard
-OrderTimeline
-DeliveredInfoCard
-WalletBalanceCard
-TransactionItem
-WarrantyForm
-```
-
-## 5.3. Utility
-
-```txt
-CopyButton
-SecretField
-FileUpload
-SearchBar
-CategoryChips
-FilterSheet
+Contrast rõ
+Button có focus state
+Form có label
+Error nằm gần input
+Không chỉ dùng màu để truyền trạng thái
+Icon button có aria-label
+Modal trap focus
+Secret field có label rõ
 ```
 
 ---
 
-# 6. Status badge guideline
+# 11. Copywriting Rules
 
-## 6.1. User-facing order status
-
-```txt
-waiting_payment → Chờ thanh toán
-paid_waiting_admin → Đã thanh toán - chờ xử lý
-processing → Đang xử lý
-assigned → Đã sẵn sàng
-delivered → Đã giao hàng
-refunded → Đã hoàn tiền
-failed → Xử lý thất bại
-```
-
-## 6.2. Màu badge
-
-```txt
-Chờ thanh toán: gray
-Chờ xử lý: blue
-Đang xử lý: amber
-Đã sẵn sàng: purple
-Đã giao: green
-Hoàn tiền: slate
-Thất bại: red
-```
-
----
-
-# 7. Copy guideline
-
-## 7.1. Nên dùng
+## Nên dùng
 
 ```txt
 Đã thanh toán - chờ xử lý
@@ -881,30 +1283,80 @@ Bảo hành theo chính sách của gói
 Yêu cầu hỗ trợ
 ```
 
-## 7.2. Không nên dùng
+## Không nên dùng
 
 ```txt
 Giao tự động ngay
 Nhận hàng tức thì
 Cam kết không bao giờ lỗi
 Tài khoản vĩnh viễn
-Siêu rẻ không nguồn gốc
+Rẻ nhất thị trường
+```
+
+Cynex nên nói rõ, chuyên nghiệp, không hứa quá mức.
+
+---
+
+# 12. Hero Visual Guideline
+
+Hero visual nên là một hình riêng, dùng bên phải của homepage.
+
+Concept:
+
+```txt
+Cynex logo ở trung tâm
+Các app icon xung quanh
+Flow lines từ app về logo
+Light background
+Soft 3D
+SaaS clean
+```
+
+Ý nghĩa:
+
+```txt
+Cynex là trung tâm kết nối các dịch vụ premium.
+```
+
+Không dùng:
+
+```txt
+Dashboard nhiều số liệu
+Wallet card
+Order card
+Banner sale
+Quá nhiều app icon
+```
+
+Animation nếu build bằng code:
+
+```txt
+App icons float nhẹ
+Flow line chạy chậm
+Logo card hover nhẹ
 ```
 
 ---
 
-# 8. Final checklist cho từng screen
-
-Trước khi chốt UI, kiểm tra:
+# 13. Final AI Design Prompt
 
 ```txt
-Screen này có giúp user làm việc chính nhanh hơn không?
-Có thông tin nào đang lặp hoặc thừa không?
-CTA chính có thấy ngay không?
-Mobile có dễ bấm không?
-Trạng thái đơn có rõ không?
-Có gây hiểu nhầm là giao tự động không?
-Thông tin nhạy cảm có được che/copy đúng cách không?
+Design a premium modern SaaS marketplace for Cynex, a digital premium service platform. Use a light theme with Cynex Blue as the primary accent. The visual style should feel like Linear, Raycast, Clerk, Resend and Lemon Squeezy: clean, spacious, minimal but not plain. Focus on clear product discovery, simple product cards, strong CTA hierarchy, clear order tracking and secure delivery information. Avoid gaming marketplace, cyberpunk, heavy gradients, glassmorphism, Shopee-style ecommerce and cluttered layouts. Use subtle animations such as hover lift, fade, skeleton loading and gentle floating hero elements.
 ```
 
-Nếu một block không giúp user mua hàng, thanh toán, theo dõi đơn hoặc bảo hành, hãy bỏ.
+---
+
+# 14. Final Checklist
+
+Mỗi screen trước khi chốt cần kiểm tra:
+
+```txt
+User có hiểu màn này để làm gì trong 3 giây không?
+CTA chính có rõ không?
+Có thông tin nào thừa không?
+Màn có quá nhiều card không?
+Mobile có dễ thao tác không?
+Trạng thái đơn có rõ không?
+Có gây hiểu nhầm là giao tự động không?
+Thông tin account/key có được bảo mật không?
+```

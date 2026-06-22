@@ -1,42 +1,51 @@
-import Link from "next/link";
 import { publicFetch } from "@/lib/api";
-import { formatVnd } from "@/lib/utils";
+import { PremiumFooter, PremiumHeader } from "@/components/storefront/PremiumChrome";
+import { ProductsCatalog } from "@/components/storefront/ProductsCatalog";
 
 interface ProductCard {
   id: string;
   name: string;
   slug: string;
   shortDescription?: string | null;
-  variants: { id: string; price: number }[];
+  imageFileId?: string | null;
+  category?: {
+    id: string;
+    name: string;
+    slug: string;
+  } | null;
+  variants: { id: string; name: string; price: number; fulfillmentType: string; status: string }[];
+}
+
+interface Category {
+  id: string;
+  name: string;
+  slug: string;
 }
 
 export const dynamic = "force-dynamic";
 
 export default async function ProductsPage() {
-  const products = await publicFetch<ProductCard[]>("/products");
+  const [products, categories] = await Promise.all([
+    publicFetch<ProductCard[]>("/products"),
+    publicFetch<Category[]>("/categories"),
+  ]);
 
   return (
-    <section>
-      <h1 className="mb-6 text-2xl font-bold">Sản phẩm</h1>
-      <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-3">
-        {products.map((p) => {
-          const min = p.variants.length ? Math.min(...p.variants.map((v) => v.price)) : 0;
-          return (
-            <Link
-              key={p.id}
-              href={`/products/${p.slug}`}
-              className="rounded-xl border bg-white p-5 transition hover:shadow-md"
-            >
-              <h2 className="font-semibold">{p.name}</h2>
-              <p className="mt-1 line-clamp-2 text-sm text-slate-500">{p.shortDescription}</p>
-              <p className="mt-3 text-brand">
-                Từ <span className="font-bold">{formatVnd(min)}</span>
-              </p>
-            </Link>
-          );
-        })}
-        {products.length === 0 && <p className="text-slate-500">Chưa có sản phẩm.</p>}
-      </div>
-    </section>
+    <div className="home-shell">
+      <PremiumHeader activeKey="products" />
+      <main className="mx-auto max-w-[1180px] px-5 pb-24 pt-12 lg:px-8 lg:pt-16">
+        <section className="max-w-[760px]">
+          <h1 className="section-title text-5xl font-semibold leading-[1.06] tracking-[-0.05em] text-slate-950 lg:text-[64px]">
+            Tất cả sản phẩm
+          </h1>
+          <p className="mt-6 max-w-[760px] text-[17px] leading-8 text-slate-500">
+            Khám phá các gói dịch vụ premium được tuyển chọn kỹ lưỡng để nâng cao hiệu suất làm việc và giải trí của bạn.
+          </p>
+        </section>
+
+        <ProductsCatalog products={products} categories={categories} />
+      </main>
+      <PremiumFooter />
+    </div>
   );
 }

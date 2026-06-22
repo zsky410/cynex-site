@@ -1,5 +1,8 @@
 import { Body, Controller, Delete, Get, Param, Patch, Post, Query, UseGuards } from "@nestjs/common";
+import { AuditAction } from "@cynex/shared";
 import { AdminAuthGuard } from "../../auth/guards";
+import { CurrentAdmin, AuthAdmin } from "../../common/current-user.decorator";
+import { AuditService } from "../../audit/audit.service";
 import { PrismaService } from "../../prisma/prisma.service";
 import { parseListQuery } from "../common/list-query";
 
@@ -23,7 +26,10 @@ function pick(body: Record<string, any>): Record<string, any> {
 @UseGuards(AdminAuthGuard)
 @Controller("admin/products")
 export class AdminProductsController {
-  constructor(private readonly prisma: PrismaService) {}
+  constructor(
+    private readonly prisma: PrismaService,
+    private readonly audit: AuditService,
+  ) {}
 
   @Get()
   async list(@Query() q: Record<string, any>) {
@@ -46,18 +52,21 @@ export class AdminProductsController {
   }
 
   @Post()
-  async create(@Body() body: Record<string, any>) {
-    return { data: await this.prisma.product.create({ data: pick(body) as any }) };
+  async create(@CurrentAdmin() admin: AuthAdmin, @Body() body: Record<string, any>) {
+    const data = await this.prisma.product.create({ data: pick(body) as any });
+    await this.audit.logAdminAction(admin.id, AuditAction.ADMIN_CREATE_PRODUCT, "product", data.id);
+    return { data };
   }
 
   @Patch(":id")
-  async update(@Param("id") id: string, @Body() body: Record<string, any>) {
-    return { data: await this.prisma.product.update({ where: { id }, data: pick(body) }) };
+  async update(@CurrentAdmin() admin: AuthAdmin, @Param("id") id: string, @Body() body: Record<string, any>) {
+    const data = await this.prisma.product.update({ where: { id }, data: pick(body) });
+    await this.audit.logAdminAction(admin.id, AuditAction.ADMIN_UPDATE_PRODUCT, "product", id);
+    return { data };
   }
 
   @Delete(":id")
   async remove(@Param("id") id: string) {
-    // Soft delete via archived to preserve order history references.
     return { data: await this.prisma.product.update({ where: { id }, data: { status: "archived" } }) };
   }
 }

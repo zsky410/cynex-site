@@ -1,4 +1,4 @@
-import { Body, Controller, HttpCode, Post } from "@nestjs/common";
+import { Body, Controller, HttpCode, Post, UseGuards } from "@nestjs/common";
 import { Throttle } from "@nestjs/throttler";
 import { AuthService } from "./auth.service";
 import { ZodValidationPipe } from "../common/zod-validation.pipe";
@@ -7,11 +7,17 @@ import {
   LoginSchema,
   ForgotPasswordSchema,
   ResetPasswordSchema,
+  ChangePasswordSchema,
+  RefreshTokenSchema,
   type RegisterDto,
   type LoginDto,
   type ForgotPasswordDto,
   type ResetPasswordDto,
+  type ChangePasswordDto,
+  type RefreshTokenDto,
 } from "@cynex/shared";
+import { JwtAuthGuard } from "./guards";
+import { CurrentUser, AuthUser } from "../common/current-user.decorator";
 
 @Controller("auth")
 export class AuthController {
@@ -48,5 +54,21 @@ export class AuthController {
   @Post("reset-password")
   reset(@Body(new ZodValidationPipe(ResetPasswordSchema)) dto: ResetPasswordDto) {
     return this.auth.resetPassword(dto.token, dto.password);
+  }
+
+  @HttpCode(200)
+  @Post("refresh")
+  refresh(@Body(new ZodValidationPipe(RefreshTokenSchema)) dto: RefreshTokenDto) {
+    return this.auth.refresh(dto.refreshToken);
+  }
+
+  @UseGuards(JwtAuthGuard)
+  @HttpCode(200)
+  @Post("change-password")
+  changePassword(
+    @CurrentUser() user: AuthUser,
+    @Body(new ZodValidationPipe(ChangePasswordSchema)) dto: ChangePasswordDto,
+  ) {
+    return this.auth.changePassword(user.id, dto);
   }
 }
