@@ -29,6 +29,7 @@ export type AdminNavItem = {
   icon: ComponentType | (() => ReactNode);
   description?: string;
   enabled?: boolean;
+  legacyPath?: string;
 };
 
 export type AdminNavGroup = {
@@ -39,11 +40,12 @@ export type AdminNavGroup = {
 
 export const adminDashboardRoute: AdminNavItem = {
   key: "dashboard",
-  path: "/shell",
+  path: "/shell/dashboard",
   label: "Tổng quan",
   icon: DashboardOutlined,
   description: "Khu shell Ant Design an toàn để rollout dần mà không chặn màn hình legacy.",
   enabled: true,
+  legacyPath: ADMIN_HOME_PATH,
 };
 
 const resourceIcons: Record<ResourceConfigKey, ComponentType> = {
@@ -70,6 +72,7 @@ const groupedResourceItems = shellGroupOrder.map((groupKey) => ({
     .map((config) => ({
       key: config.key,
       path: config.shellPath,
+      legacyPath: config.legacyPrefixes[0],
       label: config.label,
       icon: resourceIcons[config.iconKey],
       description: config.description,

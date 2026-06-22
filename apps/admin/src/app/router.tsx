@@ -1,5 +1,5 @@
-import { DashboardOutlined, LockOutlined } from "@ant-design/icons";
-import { Card, Result, Space, Tag, Typography } from "antd";
+import { DashboardOutlined } from "@ant-design/icons";
+import { Card, Space, Tag, Typography } from "antd";
 import { createBrowserRouter, Navigate } from "react-router-dom";
 import App from "../App";
 import { LOGIN_PATH } from "../config";
@@ -14,6 +14,7 @@ import VariantFormPage from "../features/variants/VariantFormPage";
 import VariantListPage from "../features/variants/VariantListPage";
 import OrderListPage from "../features/orders/OrderListPage";
 import OrderDetailPage from "../features/orders/OrderDetailPage";
+import { adminNavGroups } from "./routes";
 
 function ShellOverviewPage() {
   return (
@@ -45,17 +46,9 @@ function ShellOverviewPage() {
   );
 }
 
-function ComingSoonPage() {
-  return (
-    <Card className="admin-dashboard-panel">
-      <Result
-        icon={<LockOutlined style={{ color: "#1677ff" }} />}
-        title="Màn hình này sẽ được thay thế ở bước kế tiếp"
-        subTitle="Route legacy tương ứng vẫn hoạt động ở nhánh React Admin hiện tại."
-      />
-    </Card>
-  );
-}
+const fallbackShellRoutes = adminNavGroups
+  .flatMap((group) => group.items)
+  .filter((item) => item.key !== "dashboard" && item.legacyPath);
 
 export const router = createBrowserRouter([
   {
@@ -71,7 +64,7 @@ export const router = createBrowserRouter([
         children: [
           {
             index: true,
-            element: <ShellOverviewPage />,
+            element: <Navigate to="/shell/dashboard" replace />,
           },
           {
             path: "dashboard",
@@ -109,38 +102,10 @@ export const router = createBrowserRouter([
             path: "orders/:orderId",
             element: <OrderDetailPage />,
           },
-          {
-            path: "users",
-            element: <ComingSoonPage />,
-          },
-          {
-            path: "warranty",
-            element: <ComingSoonPage />,
-          },
-          {
-            path: "sources",
-            element: <ComingSoonPage />,
-          },
-          {
-            path: "source-orders",
-            element: <ComingSoonPage />,
-          },
-          {
-            path: "inventory/accounts",
-            element: <ComingSoonPage />,
-          },
-          {
-            path: "inventory/keys",
-            element: <ComingSoonPage />,
-          },
-          {
-            path: "email-logs",
-            element: <ComingSoonPage />,
-          },
-          {
-            path: "audit-logs",
-            element: <ComingSoonPage />,
-          },
+          ...fallbackShellRoutes.map((item) => ({
+            path: item.path.replace(/^\/shell\//, ""),
+            element: <Navigate to={item.legacyPath!} replace />,
+          })),
         ],
       },
     ],

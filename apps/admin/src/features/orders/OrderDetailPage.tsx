@@ -245,16 +245,20 @@ function FulfillmentActions({ item, onDone }: { item: OrderItem; onDone: () => P
             </Button>
             <Button
               loading={busy}
-              onClick={() =>
-                run(
+              onClick={() => {
+                if (status === "delivered" && !window.confirm("Đã giao rồi. Gửi lại email?")) {
+                  return;
+                }
+
+                void run(
                   () =>
                     adminFetch(`/admin/fulfillments/${fulfillment.id}/send-delivery-email`, {
                       method: "POST",
                       body: JSON.stringify({ confirm: status === "delivered" }),
                     }),
                   status === "delivered" ? "Đã gửi lại email giao" : "Đã gửi email giao",
-                )
-              }
+                );
+              }}
             >
               {status === "delivered" ? "Gửi lại email giao" : "Gửi email giao"}
             </Button>
@@ -296,6 +300,7 @@ export default function OrderDetailPage() {
 
   async function refundOrder() {
     if (!orderId) return;
+    if (!window.confirm("Hoàn tiền đơn này vào ví khách hàng?")) return;
     setRefunding(true);
     try {
       await adminFetch(`/admin/orders/${orderId}/refund`, {

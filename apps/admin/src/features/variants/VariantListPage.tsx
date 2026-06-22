@@ -88,8 +88,17 @@ export default function VariantListPage() {
         key: "status",
         render: (status: string) => <StatusTag status={status} label={status} />,
       },
+      {
+        title: labels.actions,
+        key: "actions",
+        render: (_, record) => (
+          <Button type="link" onClick={() => navigate(`/shell/variants/${record.id}/edit`)}>
+            {labels.edit}
+          </Button>
+        ),
+      },
     ],
-    [],
+    [navigate],
   );
 
   function setPageParams(nextPage: number, nextPageSize: number) {
