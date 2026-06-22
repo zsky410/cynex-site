@@ -1,102 +1,64 @@
-import { Admin, Resource } from "react-admin";
-import InventoryIcon from "@mui/icons-material/Inventory";
-import LayersIcon from "@mui/icons-material/Layers";
-import ReceiptIcon from "@mui/icons-material/Receipt";
-import PeopleIcon from "@mui/icons-material/People";
-import StorefrontIcon from "@mui/icons-material/Storefront";
-import ShoppingCartIcon from "@mui/icons-material/ShoppingCart";
-import VpnKeyIcon from "@mui/icons-material/VpnKey";
-import AccountBoxIcon from "@mui/icons-material/AccountBox";
-import ReportProblemIcon from "@mui/icons-material/ReportProblem";
-import MailOutlineIcon from "@mui/icons-material/MailOutline";
-import HistoryIcon from "@mui/icons-material/History";
-import { dataProvider } from "./dataProvider";
-import { authProvider } from "./authProvider";
-import { ProductList, ProductEdit, ProductCreate } from "./resources/products";
-import { VariantList, VariantEdit, VariantCreate } from "./resources/variants";
-import { OrderList, OrderShow } from "./resources/orders";
-import { UserList, UserShow, UserEdit } from "./resources/users";
-import { SourceList, SourceEdit, SourceCreate } from "./resources/sources";
-import { SourceOrderList, SourceOrderEdit, SourceOrderCreate } from "./resources/sourceOrders";
-import { AccountList, AccountEdit, AccountCreate, KeyList, KeyEdit, KeyCreate } from "./resources/inventory";
-import { WarrantyList, WarrantyShow, WarrantyEdit } from "./resources/warranty";
-import { AuditLogList, AuditLogShow, EmailLogList, EmailLogShow } from "./resources/logs";
-import Dashboard from "./Dashboard";
+import { DashboardOutlined, RocketOutlined } from "@ant-design/icons";
+import { Card, Col, Row, Space, Tag, Typography } from "antd";
+import { Link } from "react-router-dom";
+import { adminNavGroups } from "./app/routes";
+import { PageHeader } from "./components/common/PageHeader";
+
+const activeMigrations = adminNavGroups
+  .flatMap((group) => group.items)
+  .filter((item) => item.path !== "/dashboard");
 
 export default function App() {
   return (
-    <Admin dataProvider={dataProvider} authProvider={authProvider} dashboard={Dashboard} title="Cynex Admin">
-      <Resource
-        name="products"
-        list={ProductList}
-        edit={ProductEdit}
-        create={ProductCreate}
-        icon={InventoryIcon}
+    <Space direction="vertical" size={24} style={{ width: "100%" }}>
+      <PageHeader
+        title="Tổng quan shell quản trị"
+        subtitle="Router, đăng nhập và khung Ant Design đã sẵn sàng. Các resource page sẽ được thay thế dần mà không đổi API contract."
+        extra={<Tag color="blue">Phase 1</Tag>}
       />
-      <Resource
-        name="product-variants"
-        options={{ label: "Variants" }}
-        list={VariantList}
-        edit={VariantEdit}
-        create={VariantCreate}
-        icon={LayersIcon}
-      />
-      <Resource name="orders" list={OrderList} show={OrderShow} icon={ReceiptIcon} />
-      <Resource
-        name="email-logs"
-        options={{ label: "Email logs" }}
-        list={EmailLogList}
-        show={EmailLogShow}
-        icon={MailOutlineIcon}
-      />
-      <Resource
-        name="audit-logs"
-        options={{ label: "Audit logs" }}
-        list={AuditLogList}
-        show={AuditLogShow}
-        icon={HistoryIcon}
-      />
-      <Resource
-        name="warranty-cases"
-        options={{ label: "Warranty" }}
-        list={WarrantyList}
-        show={WarrantyShow}
-        edit={WarrantyEdit}
-        icon={ReportProblemIcon}
-      />
-      <Resource name="users" list={UserList} show={UserShow} edit={UserEdit} icon={PeopleIcon} />
-      <Resource
-        name="supply-sources"
-        options={{ label: "Sources" }}
-        list={SourceList}
-        edit={SourceEdit}
-        create={SourceCreate}
-        icon={StorefrontIcon}
-      />
-      <Resource
-        name="source-orders"
-        options={{ label: "Source orders" }}
-        list={SourceOrderList}
-        edit={SourceOrderEdit}
-        create={SourceOrderCreate}
-        icon={ShoppingCartIcon}
-      />
-      <Resource
-        name="inventory-accounts"
-        options={{ label: "Inventory: accounts" }}
-        list={AccountList}
-        edit={AccountEdit}
-        create={AccountCreate}
-        icon={AccountBoxIcon}
-      />
-      <Resource
-        name="inventory-keys"
-        options={{ label: "Inventory: keys" }}
-        list={KeyList}
-        edit={KeyEdit}
-        create={KeyCreate}
-        icon={VpnKeyIcon}
-      />
-    </Admin>
+
+      <Card className="admin-dashboard-panel">
+        <Space direction="vertical" size={12}>
+          <Space size="middle">
+            <DashboardOutlined style={{ fontSize: 20, color: "#1677ff" }} />
+            <Typography.Title level={4} style={{ margin: 0 }}>
+              Dashboard tạm thời
+            </Typography.Title>
+          </Space>
+          <Typography.Paragraph type="secondary" style={{ margin: 0 }}>
+            `Dashboard.tsx` hiện vẫn phụ thuộc vào React Admin context, nên route protected mới đang
+            dùng một landing page an toàn trong khi shell được ghép vào codebase.
+          </Typography.Paragraph>
+          <Typography.Paragraph style={{ margin: 0 }}>
+            Mục tiêu của bước này là đưa vào production một khung điều hướng mới, để các task tiếp
+            theo chỉ việc thay nội dung từng màn hình.
+          </Typography.Paragraph>
+        </Space>
+      </Card>
+
+      <Row gutter={[16, 16]} className="admin-dashboard-grid">
+        {activeMigrations.map((item) => (
+          <Col key={item.key} xs={24} md={12} xl={8}>
+            <Card className="admin-dashboard-panel">
+              <Space direction="vertical" size={10}>
+                <Space size="middle">
+                  <item.icon />
+                  <Typography.Text strong>{item.label}</Typography.Text>
+                </Space>
+                <Typography.Paragraph type="secondary" style={{ margin: 0 }}>
+                  {item.description}
+                </Typography.Paragraph>
+                <Link to={item.path}>
+                  <Space size={6}>
+                    <RocketOutlined />
+                    <span>Mở route tạm thời</span>
+                  </Space>
+                </Link>
+              </Space>
+            </Card>
+          </Col>
+        ))}
+      </Row>
+    </Space>
   );
 }

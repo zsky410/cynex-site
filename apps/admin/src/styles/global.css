@@ -1,0 +1,94 @@
+:root {
+  font-family:
+    "Be Vietnam Pro", "Inter", "Segoe UI", system-ui, -apple-system, BlinkMacSystemFont,
+    sans-serif;
+  line-height: 1.5;
+  font-weight: 400;
+  color: #14213d;
+  background: #f4f7fb;
+  font-synthesis: none;
+  text-rendering: optimizeLegibility;
+  -webkit-font-smoothing: antialiased;
+  -moz-osx-font-smoothing: grayscale;
+}
+
+* {
+  box-sizing: border-box;
+}
+
+html,
+body,
+#root {
+  min-height: 100%;
+  margin: 0;
+}
+
+body {
+  background:
+    radial-gradient(circle at top left, rgba(22, 119, 255, 0.08), transparent 28%),
+    linear-gradient(180deg, #f8fbff 0%, #f4f7fb 100%);
+}
+
+a {
+  color: inherit;
+}
+
+.admin-shell-content {
+  padding: 24px;
+}
+
+.admin-sidebar-shell {
+  height: 100%;
+  padding: 16px 12px;
+}
+
+.admin-sidebar-brand {
+  padding: 10px 12px 18px;
+}
+
+.admin-shell-header {
+  height: 100%;
+  padding: 0 20px;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 16px;
+}
+
+.admin-shell-user {
+  display: flex;
+  flex-direction: column;
+  align-items: flex-end;
+}
+
+.admin-page-header {
+  display: flex;
+  align-items: flex-start;
+  justify-content: space-between;
+  gap: 16px;
+  margin-bottom: 24px;
+}
+
+.admin-dashboard-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(220px, 1fr));
+  gap: 16px;
+}
+
+.admin-dashboard-panel {
+  border-radius: 20px;
+}
+
+@media (max-width: 960px) {
+  .admin-shell-header {
+    padding: 0 16px;
+  }
+
+  .admin-shell-user {
+    display: none;
+  }
+
+  .admin-page-header {
+    flex-direction: column;
+  }
+}
