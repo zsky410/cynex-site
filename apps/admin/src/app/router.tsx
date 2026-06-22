@@ -1,24 +1,50 @@
 import { DashboardOutlined, LockOutlined } from "@ant-design/icons";
-import { Button, Card, Result, Space, Typography } from "antd";
+import { Card, Result, Space, Tag, Typography } from "antd";
 import { createBrowserRouter, Navigate } from "react-router-dom";
 import App from "../App";
-import { ADMIN_HOME_PATH, LOGIN_PATH } from "../config";
+import { LOGIN_PATH } from "../config";
 import LoginPage from "../features/auth/LoginPage";
 import { RequireAuth } from "../features/auth/RequireAuth";
 import { AdminLayout } from "../components/layout/AdminLayout";
+import { PageHeader } from "../components/common/PageHeader";
+
+function ShellOverviewPage() {
+  return (
+    <Space direction="vertical" size={24} style={{ width: "100%" }}>
+      <PageHeader
+        title="Shell Ant Design an toàn"
+        subtitle="Khu vực này dùng để rollout router, điều hướng và giao diện mới mà không chặn các màn hình React Admin hiện tại."
+        extra={<Tag color="blue">Shell preview</Tag>}
+      />
+      <Card className="admin-dashboard-panel">
+        <Space direction="vertical" size={12}>
+          <Space size="middle">
+            <DashboardOutlined style={{ fontSize: 20, color: "#1677ff" }} />
+            <Typography.Title level={4} style={{ margin: 0 }}>
+              Legacy routes vẫn là mặc định
+            </Typography.Title>
+          </Space>
+          <Typography.Paragraph type="secondary" style={{ margin: 0 }}>
+            Các route như sản phẩm, đơn hàng, tồn kho và audit vẫn chạy qua React Admin để tránh
+            regression trong giai đoạn chuyển đổi.
+          </Typography.Paragraph>
+          <Typography.Paragraph style={{ margin: 0 }}>
+            Shell mới chỉ hiển thị điều hướng và placeholder an toàn cho đến khi từng resource page
+            được migrate hoàn chỉnh.
+          </Typography.Paragraph>
+        </Space>
+      </Card>
+    </Space>
+  );
+}
 
 function ComingSoonPage() {
   return (
     <Card className="admin-dashboard-panel">
       <Result
         icon={<LockOutlined style={{ color: "#1677ff" }} />}
-        title="Khu vực này sẽ được chuyển sang Ant Design ở bước tiếp theo"
-        subTitle="Shell, router và đăng nhập đã sẵn sàng. Các resource page sẽ được migrate riêng theo từng task."
-        extra={
-          <Typography.Text type="secondary">
-            Giữ nguyên API contract hiện tại trong khi thay thế dần giao diện quản trị.
-          </Typography.Text>
-        }
+        title="Màn hình này sẽ được thay thế ở bước kế tiếp"
+        subTitle="Route legacy tương ứng vẫn hoạt động ở nhánh React Admin hiện tại."
       />
     </Card>
   );
@@ -30,7 +56,7 @@ export const router = createBrowserRouter([
     element: <LoginPage />,
   },
   {
-    path: "/",
+    path: "/shell",
     element: <RequireAuth />,
     children: [
       {
@@ -38,11 +64,11 @@ export const router = createBrowserRouter([
         children: [
           {
             index: true,
-            element: <Navigate to={ADMIN_HOME_PATH} replace />,
+            element: <ShellOverviewPage />,
           },
           {
-            path: ADMIN_HOME_PATH.replace(/^\//, ""),
-            element: <App />,
+            path: "dashboard",
+            element: <ShellOverviewPage />,
           },
           {
             path: "products",
@@ -94,6 +120,6 @@ export const router = createBrowserRouter([
   },
   {
     path: "*",
-    element: <Navigate to={ADMIN_HOME_PATH} replace />,
+    element: <App />,
   },
 ]);

@@ -35,6 +35,7 @@ export type AdminNavItem = {
   icon: ComponentType | (() => ReactNode);
   description?: string;
   enabled?: boolean;
+  matchPrefixes?: string[];
 };
 
 export type AdminNavGroup = {
@@ -45,11 +46,12 @@ export type AdminNavGroup = {
 
 export const adminDashboardRoute: AdminNavItem = {
   key: "dashboard",
-  path: ADMIN_HOME_PATH,
+  path: "/shell",
   label: "Tổng quan",
   icon: DashboardOutlined,
-  description: "Tổng quan vận hành và tiến độ chuyển đổi giao diện.",
+  description: "Khu shell Ant Design an toàn để rollout dần mà không chặn màn hình legacy.",
   enabled: true,
+  matchPrefixes: [ADMIN_HOME_PATH, "/"],
 };
 
 export const adminNavGroups: AdminNavGroup[] = [
@@ -64,17 +66,19 @@ export const adminNavGroups: AdminNavGroup[] = [
     items: [
       {
         key: "products",
-        path: "/products",
+        path: "/shell/products",
         label: "Sản phẩm",
         icon: AppstoreOutlined,
         description: "Danh sách và biểu mẫu sản phẩm sẽ được chuyển sang Ant Design ở bước sau.",
+        matchPrefixes: ["/products"],
       },
       {
         key: "variants",
-        path: "/variants",
+        path: "/shell/variants",
         label: "Biến thể",
         icon: ToolOutlined,
         description: "Quản lý biến thể và fulfillment sẽ được kích hoạt sau khi shell ổn định.",
+        matchPrefixes: ["/product-variants", "/variants"],
       },
     ],
   },
@@ -84,24 +88,27 @@ export const adminNavGroups: AdminNavGroup[] = [
     items: [
       {
         key: "orders",
-        path: "/orders",
+        path: "/shell/orders",
         label: "Đơn hàng",
         icon: ShoppingCartOutlined,
         description: "Theo dõi xử lý đơn, trạng thái giao hàng và hoàn tiền.",
+        matchPrefixes: ["/orders"],
       },
       {
         key: "users",
-        path: "/users",
+        path: "/shell/users",
         label: "Người dùng",
         icon: TeamOutlined,
         description: "Thông tin tài khoản, ví và lịch sử hoạt động người dùng.",
+        matchPrefixes: ["/users"],
       },
       {
         key: "warranty",
-        path: "/warranty",
+        path: "/shell/warranty",
         label: "Bảo hành",
         icon: WarningOutlined,
         description: "Case bảo hành, thay thế asset và phản hồi hỗ trợ.",
+        matchPrefixes: ["/warranty-cases", "/warranty"],
       },
     ],
   },
@@ -111,31 +118,35 @@ export const adminNavGroups: AdminNavGroup[] = [
     items: [
       {
         key: "sources",
-        path: "/sources",
+        path: "/shell/sources",
         label: "Nguồn cung",
         icon: ShopOutlined,
         description: "Theo dõi nguồn hàng và đối tác cung ứng.",
+        matchPrefixes: ["/supply-sources", "/sources"],
       },
       {
         key: "sourceOrders",
-        path: "/source-orders",
+        path: "/shell/source-orders",
         label: "Đơn nhập",
         icon: ShoppingCartOutlined,
         description: "Kiểm soát đơn nhập từ nhà cung cấp.",
+        matchPrefixes: ["/source-orders"],
       },
       {
         key: "inventoryAccounts",
-        path: "/inventory/accounts",
+        path: "/shell/inventory/accounts",
         label: "Kho tài khoản",
         icon: SafetyOutlined,
         description: "Tài khoản tồn kho, chia sẻ và trạng thái sử dụng.",
+        matchPrefixes: ["/inventory-accounts", "/inventory/accounts"],
       },
       {
         key: "inventoryKeys",
-        path: "/inventory/keys",
+        path: "/shell/inventory/keys",
         label: "Kho key",
         icon: KeyOutlined,
         description: "Kho key và lộ trình reveal bảo mật.",
+        matchPrefixes: ["/inventory-keys", "/inventory/keys"],
       },
     ],
   },
@@ -145,26 +156,47 @@ export const adminNavGroups: AdminNavGroup[] = [
     items: [
       {
         key: "emailLogs",
-        path: "/email-logs",
+        path: "/shell/email-logs",
         label: "Email",
         icon: MailOutlined,
         description: "Nhật ký gửi email và trạng thái deliverability.",
+        matchPrefixes: ["/email-logs"],
       },
       {
         key: "auditLogs",
-        path: "/audit-logs",
+        path: "/shell/audit-logs",
         label: "Audit",
         icon: AuditOutlined,
         description: "Audit trail cho thao tác quản trị và reveal secrets.",
+        matchPrefixes: ["/audit-logs"],
       },
     ],
   },
 ];
 
-export const adminRouteLookup = Object.fromEntries(
-  adminNavGroups.flatMap((group) => group.items.map((item) => [item.path, item])),
-) as Record<string, AdminNavItem>;
+function normalizePathname(pathname: string) {
+  if (!pathname) return "/";
+  if (pathname === "/") return "/";
+  return pathname.replace(/\/+$/, "");
+}
+
+function matchesPrefix(pathname: string, prefix: string) {
+  const normalizedPath = normalizePathname(pathname);
+  const normalizedPrefix = normalizePathname(prefix);
+
+  return (
+    normalizedPath === normalizedPrefix ||
+    normalizedPath.startsWith(`${normalizedPrefix}/`)
+  );
+}
 
 export function getRouteMeta(pathname: string) {
-  return adminRouteLookup[pathname] ?? adminDashboardRoute;
+  const normalizedPath = normalizePathname(pathname);
+  const candidates = adminNavGroups
+    .flatMap((group) => group.items)
+    .flatMap((item) => [item.path, ...(item.matchPrefixes ?? [])].map((prefix) => ({ item, prefix })))
+    .filter(({ prefix }) => matchesPrefix(normalizedPath, prefix))
+    .sort((a, b) => normalizePathname(b.prefix).length - normalizePathname(a.prefix).length);
+
+  return candidates[0]?.item ?? adminDashboardRoute;
 }
