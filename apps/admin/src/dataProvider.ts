@@ -1,6 +1,7 @@
 import type { DataProvider } from "react-admin";
 import { API_URL } from "./config";
 import { getToken } from "./authProvider";
+import { buildIdsQuery, buildListQuery } from "./lib/query-string";
 
 // Custom provider speaking a small, consistent contract with the NestJS admin API:
 //   list:   GET    /admin/<resource>?page&perPage&sort&order&filter  -> { data, total }
@@ -33,13 +34,7 @@ export const dataProvider: DataProvider = {
   async getList(resource, params) {
     const { page = 1, perPage = 25 } = params.pagination ?? {};
     const { field = "id", order = "DESC" } = params.sort ?? {};
-    const query = new URLSearchParams({
-      page: String(page),
-      perPage: String(perPage),
-      sort: field,
-      order,
-      filter: JSON.stringify(params.filter ?? {}),
-    });
+    const query = buildListQuery({ page, perPage, sort: field, order, filter: params.filter ?? {} });
     const json = await http(`/admin/${resource}?${query.toString()}`);
     return { data: json.data, total: json.total ?? json.data.length };
   },
@@ -48,19 +43,19 @@ export const dataProvider: DataProvider = {
     return { data: json.data };
   },
   async getMany(resource, params) {
-    const query = new URLSearchParams({ ids: JSON.stringify(params.ids) });
+    const query = buildIdsQuery(params.ids);
     const json = await http(`/admin/${resource}?${query.toString()}`);
     return { data: json.data };
   },
   async getManyReference(resource, params) {
     const { page = 1, perPage = 25 } = params.pagination ?? {};
     const { field = "id", order = "DESC" } = params.sort ?? {};
-    const query = new URLSearchParams({
-      page: String(page),
-      perPage: String(perPage),
+    const query = buildListQuery({
+      page,
+      perPage,
       sort: field,
       order,
-      filter: JSON.stringify({ ...params.filter, [params.target]: params.id }),
+      filter: { ...params.filter, [params.target]: params.id },
     });
     const json = await http(`/admin/${resource}?${query.toString()}`);
     return { data: json.data, total: json.total ?? json.data.length };

@@ -4,6 +4,7 @@ import { useLogout } from "react-admin";
 import { API_URL } from "./config";
 import { getToken } from "./authProvider";
 import { getDashboardRecoveryAction } from "./dashboardRecovery";
+import { clearAuthStorage } from "./lib/auth-storage";
 
 interface DashboardData {
   pending: number;
@@ -75,8 +76,7 @@ export default function Dashboard() {
       .then((json) => setData(json))
       .catch((err: Error & { status?: number }) => {
         if (getDashboardRecoveryAction({ hasToken: true, status: err.status }) === "logout") {
-          localStorage.removeItem("cynex_admin_token");
-          localStorage.removeItem("cynex_admin_identity");
+          clearAuthStorage();
           logout();
           return;
         }
