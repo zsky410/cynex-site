@@ -13,7 +13,12 @@ import {
   Wallet,
 } from "lucide-react";
 import { AccountCard, AccountPageLayout } from "@/components/account/AccountUi";
+import {
+  BankTransferInstructions,
+  type BankTransferPayment,
+} from "@/components/payments/BankTransferInstructions";
 import { apiFetch, getToken, ApiError } from "@/lib/api";
+import { formatWalletTxnTimeVN } from "@/lib/date-time";
 import { WALLET_PRESET_AMOUNTS, WALLET_TXN_TYPE_LABEL } from "@/lib/wallet";
 import { cn, formatVnd } from "@/lib/utils";
 
@@ -39,18 +44,6 @@ function txnIcon(type: string) {
   }
 }
 
-function formatTxnTime(iso: string) {
-  const d = new Date(iso);
-  const now = new Date();
-  const sameDay =
-    d.getDate() === now.getDate() &&
-    d.getMonth() === now.getMonth() &&
-    d.getFullYear() === now.getFullYear();
-  const time = d.toLocaleTimeString("vi-VN", { hour: "2-digit", minute: "2-digit" });
-  if (sameDay) return `Hôm nay, ${time}`;
-  return d.toLocaleString("vi-VN", { day: "2-digit", month: "2-digit", year: "numeric", hour: "2-digit", minute: "2-digit" });
-}
-
 export default function WalletPage() {
   const router = useRouter();
   const [balance, setBalance] = useState<number | null>(null);
@@ -59,6 +52,7 @@ export default function WalletPage() {
   const [customAmount, setCustomAmount] = useState("");
   const [error, setError] = useState<string | null>(null);
   const [busy, setBusy] = useState(false);
+  const [depositPayment, setDepositPayment] = useState<BankTransferPayment | null>(null);
 
   const depositAmount = useMemo(() => {
     const parsed = Number(customAmount.replace(/\D/g, ""));
@@ -86,13 +80,14 @@ export default function WalletPage() {
     setError(null);
     setBusy(true);
     try {
-      const res = await apiFetch<{ checkoutUrl: string }>("/wallet/deposit", {
+      const res = await apiFetch<BankTransferPayment>("/wallet/deposit", {
         method: "POST",
         body: JSON.stringify({ amount: depositAmount }),
       });
-      window.location.href = res.checkoutUrl;
+      setDepositPayment(res);
     } catch (e) {
       setError(e instanceof ApiError ? e.message : "Không tạo được giao dịch nạp");
+    } finally {
       setBusy(false);
     }
   }
@@ -143,7 +138,9 @@ export default function WalletPage() {
 
           <AccountCard id="nap-tien">
             <h2 className="text-lg font-semibold text-sky-900">Nạp tiền nhanh</h2>
-            <p className="mt-1 text-sm text-slate-500">Thanh toán qua payOS — tối thiểu 1.000đ</p>
+            <p className="mt-1 text-sm text-slate-500">
+              Quét QR SePay hoặc chuyển khoản đúng nội dung - tối thiểu 1.000đ
+            </p>
 
             <div className="mt-5 grid grid-cols-2 gap-3 sm:grid-cols-4">
               {WALLET_PRESET_AMOUNTS.map((preset) => {
@@ -200,8 +197,14 @@ export default function WalletPage() {
               onClick={deposit}
               className="mt-5 w-full rounded-xl bg-sky-700 py-3 text-sm font-semibold text-white shadow-[0_10px_30px_rgba(10,116,184,0.28)] transition hover:bg-sky-800 disabled:opacity-60"
             >
-              {busy ? "Đang chuyển đến payOS..." : `Xác nhận nạp ${formatVnd(depositAmount)}`}
+              {busy ? "Đang tạo mã QR..." : `Tạo QR nạp ${formatVnd(depositAmount)}`}
             </button>
+
+            {depositPayment ? (
+              <div className="mt-5">
+                <BankTransferInstructions payment={depositPayment} title="Thông tin nạp tiền" />
+              </div>
+            ) : null}
           </AccountCard>
         </div>
 
@@ -226,7 +229,7 @@ export default function WalletPage() {
                     <p className="text-sm font-semibold text-slate-800">
                       {WALLET_TXN_TYPE_LABEL[t.type] ?? t.type}
                     </p>
-                    <p className="mt-0.5 text-xs text-slate-400">{formatTxnTime(t.createdAt)}</p>
+                    <p className="mt-0.5 text-xs text-slate-400">{formatWalletTxnTimeVN(t.createdAt)}</p>
                     {t.description && (
                       <p className="mt-1 truncate text-xs text-slate-500">{t.description}</p>
                     )}

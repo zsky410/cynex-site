@@ -4,7 +4,7 @@
 > `.cursor/plans/cynex_mvp_implementation_5a2af0fe.plan.md` (do NOT edit it).
 > This file tracks what is DONE vs PENDING and how to continue.
 
-Last updated: after Phase 5 replacement flow, alert jobs, Sentry/bootstrap wrappers, backup docs, and full warranty UI were completed and verified.
+Last updated: after replacing PayOS with SePay for order checkout, wallet deposits, QR instructions, and webhook confirmation, with API/web verification rerun.
 
 ## Status summary
 
@@ -57,7 +57,7 @@ pnpm -F @cynex/worker exec tsx src/main.ts
 ```bash
 pnpm typecheck                 # 9/9 packages
 pnpm -F @cynex/shared test     # 4/4 (AES-256-GCM crypto)
-pnpm -F @cynex/api test        # 25/25 (payment, fulfillment, warranty, alerts, file upload, audit/reveal, refund, log viewers)
+pnpm -F @cynex/api test        # 46/46 (payment, fulfillment, warranty, alerts, file upload, audit/reveal, refund, log viewers, SePay)
 pnpm build                     # full monorepo build
 ```
 
@@ -78,9 +78,10 @@ pnpm build                     # full monorepo build
    (`.ts`, not React `.tsx`). Simpler, no extra deps.
 3. **Dev email fallback:** if `RESEND_API_KEY` is empty, `apps/worker/src/email/resend.ts`
    logs to console and returns a fake id so `email_logs` flow is testable without a provider.
-4. **payOS / Resend / R2 keys are NOT set** in `.env` (placeholders). payOS link creation
-   and real email sending require real keys. Idempotency/credit logic is covered by tests
-   that call the service directly (see `apps/api/test/payment-idempotency.test.ts`).
+4. **SePay / Resend / R2 keys are NOT set** in `.env` (placeholders). SePay QR generation and
+   webhook validation now require the SePay bank config + webhook secret instead of PayOS keys.
+   Idempotency/credit logic is covered by tests that call the service directly
+   (see `apps/api/test/payment-idempotency.test.ts` and `apps/api/test/sepay-payment.test.ts`).
    File upload now works without R2 too: API stores bytes in local `.data/uploads` and still
    writes `files` metadata. When R2 creds are provided, the same API switches to R2 automatically.
 5. **pnpm overrides** in root `package.json`: `ioredis@5.10.1` (match BullMQ), and
@@ -126,8 +127,9 @@ pnpm build                     # full monorepo build
   rate-limited, no email enumeration). Guards: `JwtAuthGuard`, `AdminAuthGuard`.
 - `catalog/*` — public `/products`, `/products/:slug`, `/categories`
 - `orders/*` — create order (+ fulfillment row per item), list, get-by-code (ownership), pay-wallet
-- `payment/*` — payOS link creation, **idempotent** webhook `/webhooks/payos`, deposit creation,
-  `markPaid` (order + deposit branches), enqueues confirmation emails
+- `payment/*` — SePay QR payload creation for order checkout + wallet deposit, **idempotent**
+  webhook `/webhooks/sepay`, pending-attempt invalidation on retry, `markPaid` (order + deposit
+  branches), enqueues confirmation emails
 - `wallet/*` — atomic `WalletService.applyDelta` (credit/debit, ledger, no-negative), `/wallet`,
   `/wallet/transactions`, `/wallet/deposit`
 - `queue/*` — BullMQ producer (`QueueService.enqueueEmail/enqueueAlert`)
@@ -169,6 +171,8 @@ pnpm build                     # full monorepo build
 - Pages: `/`, `/products`, `/products/[slug]` (+ `BuyPanel`), `/login`, `/register`,
   `/forgot-password`, `/reset-password`, `/checkout/[orderCode]` (+ return/cancel),
   `/orders`, `/orders/[orderCode]`, `/orders/[orderCode]/warranty`, `/wallet`, `/warranty`
+- `apps/web` checkout + wallet now render SePay QR / transfer instructions directly instead of
+  redirecting to a PayOS checkout URL
 - `lib/api.ts` (token + fetch), `lib/utils.ts`, `lib/status.ts`
 
 ### apps/admin (React Admin + MUI)
