@@ -7,7 +7,6 @@ import {
 } from "@nestjs/common";
 import { ConfigService } from "@nestjs/config";
 import { PrismaService } from "../prisma/prisma.service";
-import { PayosService } from "./payos.service";
 import { QueueService, EMAIL_JOB } from "../queue/queue.service";
 import { WalletService } from "../wallet/wallet.service";
 import { EmailType } from "@cynex/shared";
@@ -22,18 +21,14 @@ function genSepayPaymentCode(): string {
 @Injectable()
 export class PaymentService {
   private readonly logger = new Logger(PaymentService.name);
-  private readonly sepay: SepayService;
 
   constructor(
     private readonly prisma: PrismaService,
-    private readonly payos: PayosService,
+    private readonly sepay: SepayService,
     private readonly queue: QueueService,
     private readonly config: ConfigService,
     private readonly wallet: WalletService,
-    sepay?: SepayService,
-  ) {
-    this.sepay = sepay ?? new SepayService(config);
-  }
+  ) {}
 
   async createDeposit(userId: string, amount: number) {
     const paymentCode = genSepayPaymentCode();
@@ -120,6 +115,12 @@ export class PaymentService {
   }
 
   // Idempotent: a duplicate webhook for an already-paid payment is a no-op.
+  async findPendingPayment(paymentCode: string) {
+    return this.prisma.payment.findFirst({
+      where: { paymentCode, status: "pending" },
+    });
+  }
+
   async markPaid(
     paymentCode: string,
     providerTransactionId: string | undefined,
@@ -153,7 +154,7 @@ export class PaymentService {
           data: {
             paymentStatus: "paid",
             fulfillmentStatus: "paid_waiting_admin",
-            paymentMethod: "payos",
+            paymentMethod: "sepay",
             paidAt: new Date(),
           },
         });
@@ -176,7 +177,7 @@ export class PaymentService {
           fresh.userId,
           fresh.amount,
           "deposit",
-          { referenceType: "payment", referenceId: fresh.id, description: "Nạp tiền payOS" },
+          { referenceType: "payment", referenceId: fresh.id, description: "Nạp tiền SePay" },
         );
       }
       didTransition = true;

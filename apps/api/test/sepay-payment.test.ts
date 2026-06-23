@@ -9,17 +9,11 @@ import { SepayService } from "../src/payment/sepay.service";
 import { PrismaClient } from "@cynex/db";
 import { PaymentService } from "../src/payment/payment.service";
 import { WalletService } from "../src/wallet/wallet.service";
+import { WebhookController } from "../src/payment/webhook.controller";
 
 function createPaymentService(prisma: PrismaClient, config: ConfigService) {
   const wallet = new WalletService(prisma as any);
   const sepayCalls: Array<{ paymentCode: string; amount: number }> = [];
-  const payos = {
-    createLink: async ({ payosOrderCode }: { payosOrderCode: number }) => ({
-      checkoutUrl: `https://payos.test/${payosOrderCode}`,
-      qrCode: `payos-qr-${payosOrderCode}`,
-      paymentLinkId: `payos-link-${payosOrderCode}`,
-    }),
-  };
   const sepay = {
     createPaymentPayload: ({ paymentCode, amount }: { paymentCode: string; amount: number }) => {
       sepayCalls.push({ paymentCode, amount });
@@ -36,11 +30,10 @@ function createPaymentService(prisma: PrismaClient, config: ConfigService) {
   };
   const service = new PaymentService(
     prisma as any,
-    payos as any,
+    sepay as any,
     {} as any,
     config,
     wallet,
-    sepay as any,
   );
 
   return { service, sepayCalls };
@@ -144,24 +137,24 @@ test("sepay service parses webhook payload variants", () => {
   );
 });
 
-test("payment module keeps both payos and sepay services wired", () => {
+test("payment module wires only sepay service", () => {
   const moduleSource = readFileSync(
     resolve(import.meta.dirname, "../src/payment/payment.module.ts"),
     "utf8",
   );
 
-  assert.match(moduleSource, /import\s+\{\s*PayosService\s*\}\s+from\s+"\.\/payos\.service";/);
   assert.match(moduleSource, /import\s+\{\s*SepayService\s*\}\s+from\s+"\.\/sepay\.service";/);
-  assert.match(moduleSource, /providers:\s*\[PaymentService,\s*PayosService,\s*SepayService\]/);
-  assert.match(moduleSource, /exports:\s*\[PaymentService,\s*PayosService,\s*SepayService\]/);
+  assert.doesNotMatch(moduleSource, /PayosService/);
+  assert.match(moduleSource, /providers:\s*\[PaymentService,\s*SepayService\]/);
+  assert.match(moduleSource, /exports:\s*\[PaymentService,\s*SepayService\]/);
 });
 
-test("api package keeps payos dependency until sepay cutover", () => {
+test("api package no longer depends on payos after sepay cutover", () => {
   const packageJson = JSON.parse(
     readFileSync(resolve(import.meta.dirname, "../package.json"), "utf8"),
   ) as { dependencies?: Record<string, string> };
 
-  assert.equal(packageJson.dependencies?.["@payos/node"], "^1.0.8");
+  assert.equal(packageJson.dependencies?.["@payos/node"], undefined);
 });
 
 test("createOrderPayment creates a new sepay payment for each attempt", async () => {
@@ -231,6 +224,132 @@ test("createOrderPayment creates a new sepay payment for each attempt", async ()
     assert.notEqual(payments[0]?.paymentCode, payments[1]?.paymentCode);
     assert.equal(payments[0]?.paymentCode, first.paymentCode);
     assert.equal(payments[1]?.paymentCode, second.paymentCode);
+  } finally {
+    await prisma.payment.deleteMany({ where: { orderId: order.id } });
+    await prisma.orderFulfillment.deleteMany({ where: { orderItem: { orderId: order.id } } });
+    await prisma.orderItem.deleteMany({ where: { orderId: order.id } });
+    await prisma.order.delete({ where: { id: order.id } });
+    await prisma.user.delete({ where: { id: user.id } });
+    await prisma.$disconnect();
+  }
+});
+
+test("sepay webhook rejects invalid secret", async () => {
+  const controller = new WebhookController(
+    new SepayService(
+      new ConfigService({
+        SEPAY_BANK_NAME: "MBBank",
+        SEPAY_BANK_ACCOUNT: "0123456789",
+        SEPAY_ACCOUNT_HOLDER: "CYNEX COMPANY",
+        SEPAY_WEBHOOK_SECRET: "secret",
+      }),
+    ),
+    {
+      findPendingPayment: async () => ({ id: "p1", amount: 1000 }),
+      markPaid: async () => ({ handled: true }),
+    } as any,
+  );
+
+  const result = await controller.sepayWebhook(
+    { "x-sepay-secret": "wrong" } as any,
+    { transferContent: "SEP123", amount: 1000 },
+  );
+
+  assert.deepEqual(result, { success: false });
+});
+
+test("sepay webhook rejects amount mismatch", async () => {
+  let markPaidCalls = 0;
+  const controller = new WebhookController(
+    new SepayService(
+      new ConfigService({
+        SEPAY_BANK_NAME: "MBBank",
+        SEPAY_BANK_ACCOUNT: "0123456789",
+        SEPAY_ACCOUNT_HOLDER: "CYNEX COMPANY",
+        SEPAY_WEBHOOK_SECRET: "secret",
+      }),
+    ),
+    {
+      findPendingPayment: async () => ({ id: "p1", amount: 1000 }),
+      markPaid: async () => {
+        markPaidCalls += 1;
+        return { handled: true };
+      },
+    } as any,
+  );
+
+  const result = await controller.sepayWebhook(
+    { "x-sepay-secret": "secret" } as any,
+    { transferContent: "SEP123", amount: 999, transactionId: "txn-1" },
+  );
+
+  assert.deepEqual(result, { success: false });
+  assert.equal(markPaidCalls, 0);
+});
+
+test("sepay webhook marks an order payment as paid", async () => {
+  const prisma = new PrismaClient();
+  const wallet = new WalletService(prisma as any);
+  const queueStub = { enqueueEmail: async () => {} };
+  const config = new ConfigService({
+    SEPAY_BANK_NAME: "MBBank",
+    SEPAY_BANK_ACCOUNT: "0123456789",
+    SEPAY_ACCOUNT_HOLDER: "CYNEX COMPANY",
+    SEPAY_WEBHOOK_SECRET: "secret",
+  });
+  const paymentService = new PaymentService(
+    prisma as any,
+    new SepayService(config) as any,
+    queueStub as any,
+    config as any,
+    wallet,
+  );
+  const controller = new WebhookController(new SepayService(config), paymentService);
+
+  const user = await prisma.user.create({
+    data: { email: `webhook-order-${Date.now()}@test.com`, passwordHash: "x" },
+  });
+  const variant = await prisma.productVariant.findFirstOrThrow();
+  const order = await prisma.order.create({
+    data: {
+      orderCode: `WH-${Date.now()}`,
+      userId: user.id,
+      totalAmount: 88000,
+      items: {
+        create: {
+          productId: variant.productId,
+          productVariantId: variant.id,
+          quantity: 1,
+          unitPrice: 88000,
+          totalPrice: 88000,
+          fulfillmentType: variant.fulfillmentType,
+          fulfillment: { create: { fulfillmentType: variant.fulfillmentType } },
+        },
+      },
+    },
+  });
+  const payment = await prisma.payment.create({
+    data: {
+      paymentCode: `SEPWH${Date.now()}`,
+      orderId: order.id,
+      userId: user.id,
+      amount: 88000,
+      provider: "sepay",
+      status: "pending",
+    },
+  });
+
+  try {
+    const providerTxnId = `txn-webhook-${Date.now()}-${Math.floor(Math.random() * 1000)}`;
+    const result = await controller.sepayWebhook(
+      { "x-sepay-secret": "secret" } as any,
+      { transferContent: payment.paymentCode, amount: 88000, transactionId: providerTxnId },
+    );
+
+    assert.equal(result.success, true);
+    const freshOrder = await prisma.order.findUniqueOrThrow({ where: { id: order.id } });
+    assert.equal(freshOrder.paymentMethod, "sepay");
+    assert.equal(freshOrder.paymentStatus, "paid");
   } finally {
     await prisma.payment.deleteMany({ where: { orderId: order.id } });
     await prisma.orderFulfillment.deleteMany({ where: { orderItem: { orderId: order.id } } });
@@ -317,10 +436,6 @@ test("cancelled SePay order attempt does not settle after retry creates a new co
 
   const guardedService = new PaymentService(
     prisma as any,
-    {} as any,
-    queueStub as any,
-    config,
-    wallet,
     {
       createPaymentPayload: ({ paymentCode, amount }: { paymentCode: string; amount: number }) => ({
         paymentCode,
@@ -332,6 +447,9 @@ test("cancelled SePay order attempt does not settle after retry creates a new co
         transferContent: paymentCode,
       }),
     } as any,
+    queueStub as any,
+    config,
+    wallet,
   );
 
   const user = await prisma.user.create({
