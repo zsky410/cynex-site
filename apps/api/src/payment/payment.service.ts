@@ -11,10 +11,12 @@ import { PayosService } from "./payos.service";
 import { QueueService, EMAIL_JOB } from "../queue/queue.service";
 import { WalletService } from "../wallet/wallet.service";
 import { EmailType } from "@cynex/shared";
+import { SepayService } from "./sepay.service";
 
-// payOS requires a numeric, unique order code. Build one that fits a JS safe int.
-function genPayosOrderCode(): number {
-  return Math.floor(Date.now() / 1000) * 1000 + Math.floor(Math.random() * 1000);
+function genSepayPaymentCode(): string {
+  return `SEP${Date.now()}${Math.floor(Math.random() * 1000)
+    .toString()
+    .padStart(3, "0")}`;
 }
 
 @Injectable()
@@ -30,29 +32,29 @@ export class PaymentService {
   ) {}
 
   async createDeposit(userId: string, amount: number) {
-    const payosOrderCode = genPayosOrderCode();
+    const paymentCode = genSepayPaymentCode();
+    const sepay = new SepayService(this.config);
+    const payload = sepay.createPaymentPayload({
+      paymentCode,
+      amount,
+    });
+
     const payment = await this.prisma.payment.create({
       data: {
-        paymentCode: String(payosOrderCode),
+        paymentCode,
         userId,
         amount,
-        provider: "payos",
+        provider: "sepay",
         isDeposit: true,
         status: "pending",
+        qrCode: payload.qrCode,
       },
     });
-    const link = await this.payos.createLink({
-      payosOrderCode,
-      amount,
-      description: `Cynex nap ${payment.paymentCode}`,
-      returnUrl: this.config.getOrThrow("PAYOS_RETURN_URL"),
-      cancelUrl: this.config.getOrThrow("PAYOS_CANCEL_URL"),
-    });
-    await this.prisma.payment.update({
-      where: { id: payment.id },
-      data: { checkoutUrl: link.checkoutUrl, qrCode: link.qrCode, providerPaymentId: link.paymentLinkId },
-    });
-    return { checkoutUrl: link.checkoutUrl, qrCode: link.qrCode, paymentCode: payment.paymentCode };
+
+    return {
+      ...payload,
+      paymentCode: payment.paymentCode,
+    };
   }
 
   async createOrderPayment(userId: string, orderCode: string) {
@@ -63,40 +65,29 @@ export class PaymentService {
       throw new BadRequestException("Đơn hàng không ở trạng thái chờ thanh toán");
     }
 
-    // Reuse an existing pending payOS link if present (avoid duplicate payments).
-    const existing = await this.prisma.payment.findFirst({
-      where: { orderId: order.id, provider: "payos", status: "pending" },
+    const paymentCode = genSepayPaymentCode();
+    const sepay = new SepayService(this.config);
+    const payload = sepay.createPaymentPayload({
+      paymentCode,
+      amount: order.totalAmount,
     });
-    if (existing?.checkoutUrl) {
-      return { checkoutUrl: existing.checkoutUrl, qrCode: existing.qrCode, paymentCode: existing.paymentCode };
-    }
 
-    const payosOrderCode = genPayosOrderCode();
     const payment = await this.prisma.payment.create({
       data: {
-        paymentCode: String(payosOrderCode),
+        paymentCode,
         orderId: order.id,
         userId,
         amount: order.totalAmount,
-        provider: "payos",
+        provider: "sepay",
         status: "pending",
+        qrCode: payload.qrCode,
       },
     });
 
-    const link = await this.payos.createLink({
-      payosOrderCode,
-      amount: order.totalAmount,
-      description: `Cynex ${order.orderCode}`,
-      returnUrl: this.config.getOrThrow("PAYOS_RETURN_URL"),
-      cancelUrl: this.config.getOrThrow("PAYOS_CANCEL_URL"),
-    });
-
-    await this.prisma.payment.update({
-      where: { id: payment.id },
-      data: { checkoutUrl: link.checkoutUrl, qrCode: link.qrCode, providerPaymentId: link.paymentLinkId },
-    });
-
-    return { checkoutUrl: link.checkoutUrl, qrCode: link.qrCode, paymentCode: payment.paymentCode };
+    return {
+      ...payload,
+      paymentCode: payment.paymentCode,
+    };
   }
 
   // Idempotent: a duplicate webhook for an already-paid payment is a no-op.

@@ -6,6 +6,27 @@ import { PaymentProvider as PrismaPaymentProvider } from "@cynex/db";
 import { ConfigService } from "@nestjs/config";
 import { PaymentMethod, PaymentProvider } from "@cynex/shared";
 import { SepayService } from "../src/payment/sepay.service";
+import { PrismaClient } from "@cynex/db";
+import { PaymentService } from "../src/payment/payment.service";
+import { WalletService } from "../src/wallet/wallet.service";
+
+function createPaymentService(prisma: PrismaClient, config: ConfigService) {
+  const wallet = new WalletService(prisma as any);
+  const sepay = new SepayService(config);
+  const payos = {
+    createLink: async ({ payosOrderCode }: { payosOrderCode: number }) => ({
+      checkoutUrl: `https://payos.test/${payosOrderCode}`,
+      qrCode: `payos-qr-${payosOrderCode}`,
+      paymentLinkId: `payos-link-${payosOrderCode}`,
+    }),
+  };
+
+  if (PaymentService.length >= 6) {
+    return new (PaymentService as any)(prisma, payos, sepay, {} as any, config, wallet);
+  }
+
+  return new (PaymentService as any)(prisma, payos, {} as any, config, wallet);
+}
 
 test("shared enums expose sepay provider", () => {
   assert.equal(PaymentProvider.sepay, "sepay");
@@ -123,4 +144,134 @@ test("api package keeps payos dependency until sepay cutover", () => {
   ) as { dependencies?: Record<string, string> };
 
   assert.equal(packageJson.dependencies?.["@payos/node"], "^1.0.8");
+});
+
+test("createOrderPayment creates a new sepay payment for each attempt", async () => {
+  const prisma = new PrismaClient();
+  const config = new ConfigService({
+    SEPAY_BANK_NAME: "MBBank",
+    SEPAY_BANK_ACCOUNT: "0123456789",
+    SEPAY_ACCOUNT_HOLDER: "CYNEX COMPANY",
+    SEPAY_QR_TEMPLATE: "compact",
+  });
+  const service = createPaymentService(prisma, config);
+
+  const user = await prisma.user.create({
+    data: { email: `sepay-order-${Date.now()}@test.com`, passwordHash: "x" },
+  });
+  const variant = await prisma.productVariant.findFirstOrThrow();
+  const order = await prisma.order.create({
+    data: {
+      orderCode: `SEPAY-ORDER-${Date.now()}`,
+      userId: user.id,
+      totalAmount: 42000,
+      items: {
+        create: {
+          productId: variant.productId,
+          productVariantId: variant.id,
+          quantity: 1,
+          unitPrice: 42000,
+          totalPrice: 42000,
+          fulfillmentType: variant.fulfillmentType,
+          fulfillment: { create: { fulfillmentType: variant.fulfillmentType } },
+        },
+      },
+    },
+  });
+
+  try {
+    const first = await service.createOrderPayment(user.id, order.orderCode);
+    const second = await service.createOrderPayment(user.id, order.orderCode);
+
+    assert.equal(first.bankName, "MBBank");
+    assert.equal(first.bankAccount, "0123456789");
+    assert.equal(first.accountHolder, "CYNEX COMPANY");
+    assert.equal(first.amount, 42000);
+    assert.equal(first.transferContent, first.paymentCode);
+    assert.match(first.qrCode, new RegExp(first.paymentCode));
+
+    assert.equal(second.bankName, "MBBank");
+    assert.notEqual(second.paymentCode, first.paymentCode);
+    assert.equal(second.transferContent, second.paymentCode);
+
+    const payments = await prisma.payment.findMany({
+      where: { orderId: order.id },
+      orderBy: { createdAt: "asc" },
+    });
+
+    assert.equal(payments.length, 2);
+    assert.deepEqual(
+      payments.map((payment) => payment.provider),
+      ["sepay", "sepay"],
+    );
+    assert.deepEqual(
+      payments.map((payment) => payment.status),
+      ["pending", "pending"],
+    );
+    assert.notEqual(payments[0]?.paymentCode, payments[1]?.paymentCode);
+    assert.equal(payments[0]?.paymentCode, first.paymentCode);
+    assert.equal(payments[1]?.paymentCode, second.paymentCode);
+  } finally {
+    await prisma.payment.deleteMany({ where: { orderId: order.id } });
+    await prisma.orderFulfillment.deleteMany({ where: { orderItem: { orderId: order.id } } });
+    await prisma.orderItem.deleteMany({ where: { orderId: order.id } });
+    await prisma.order.delete({ where: { id: order.id } });
+    await prisma.user.delete({ where: { id: user.id } });
+    await prisma.$disconnect();
+  }
+});
+
+test("createDeposit creates a new sepay deposit payment for each attempt", async () => {
+  const prisma = new PrismaClient();
+  const config = new ConfigService({
+    SEPAY_BANK_NAME: "MBBank",
+    SEPAY_BANK_ACCOUNT: "0123456789",
+    SEPAY_ACCOUNT_HOLDER: "CYNEX COMPANY",
+    SEPAY_QR_TEMPLATE: "compact",
+  });
+  const service = createPaymentService(prisma, config);
+
+  const user = await prisma.user.create({
+    data: { email: `sepay-deposit-${Date.now()}@test.com`, passwordHash: "x" },
+  });
+
+  try {
+    const first = await service.createDeposit(user.id, 150000);
+    const second = await service.createDeposit(user.id, 150000);
+
+    assert.equal(first.bankName, "MBBank");
+    assert.equal(first.bankAccount, "0123456789");
+    assert.equal(first.accountHolder, "CYNEX COMPANY");
+    assert.equal(first.amount, 150000);
+    assert.equal(first.transferContent, first.paymentCode);
+    assert.match(first.qrCode, new RegExp(first.paymentCode));
+
+    assert.equal(second.bankName, "MBBank");
+    assert.notEqual(second.paymentCode, first.paymentCode);
+    assert.equal(second.transferContent, second.paymentCode);
+
+    const payments = await prisma.payment.findMany({
+      where: { userId: user.id, isDeposit: true },
+      orderBy: { createdAt: "asc" },
+    });
+
+    assert.equal(payments.length, 2);
+    assert.deepEqual(
+      payments.map((payment) => payment.provider),
+      ["sepay", "sepay"],
+    );
+    assert.deepEqual(
+      payments.map((payment) => payment.status),
+      ["pending", "pending"],
+    );
+    assert.equal(payments[0]?.amount, 150000);
+    assert.equal(payments[1]?.amount, 150000);
+    assert.notEqual(payments[0]?.paymentCode, payments[1]?.paymentCode);
+    assert.equal(payments[0]?.paymentCode, first.paymentCode);
+    assert.equal(payments[1]?.paymentCode, second.paymentCode);
+  } finally {
+    await prisma.payment.deleteMany({ where: { userId: user.id, isDeposit: true } });
+    await prisma.user.delete({ where: { id: user.id } });
+    await prisma.$disconnect();
+  }
 });
