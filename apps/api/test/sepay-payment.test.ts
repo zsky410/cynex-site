@@ -5,7 +5,9 @@ import { resolve } from "node:path";
 import { PaymentProvider as PrismaPaymentProvider } from "@cynex/db";
 import { PaymentMethod, PaymentProvider } from "@cynex/shared";
 
-test("shared payment enums stay aligned with Prisma and the init migration for sepay", () => {
+test("shared enums expose sepay provider", () => {
+  assert.equal(PaymentProvider.sepay, "sepay");
+  assert.equal(PaymentMethod.sepay, "sepay");
   assert.deepEqual(PaymentProvider, PrismaPaymentProvider);
   assert.equal(PaymentMethod.sepay, PrismaPaymentProvider.sepay);
 
