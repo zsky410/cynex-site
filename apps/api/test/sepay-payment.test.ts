@@ -12,7 +12,7 @@ import { WalletService } from "../src/wallet/wallet.service";
 
 function createPaymentService(prisma: PrismaClient, config: ConfigService) {
   const wallet = new WalletService(prisma as any);
-  const sepay = new SepayService(config);
+  const sepayCalls: Array<{ paymentCode: string; amount: number }> = [];
   const payos = {
     createLink: async ({ payosOrderCode }: { payosOrderCode: number }) => ({
       checkoutUrl: `https://payos.test/${payosOrderCode}`,
@@ -20,12 +20,30 @@ function createPaymentService(prisma: PrismaClient, config: ConfigService) {
       paymentLinkId: `payos-link-${payosOrderCode}`,
     }),
   };
+  const sepay = {
+    createPaymentPayload: ({ paymentCode, amount }: { paymentCode: string; amount: number }) => {
+      sepayCalls.push({ paymentCode, amount });
+      return {
+        paymentCode,
+        amount,
+        qrCode: `sepay-qr-${paymentCode}`,
+        bankName: "MBBank",
+        bankAccount: "0123456789",
+        accountHolder: "CYNEX COMPANY",
+        transferContent: paymentCode,
+      };
+    },
+  };
+  const service = new PaymentService(
+    prisma as any,
+    payos as any,
+    sepay as any,
+    {} as any,
+    config,
+    wallet,
+  );
 
-  if (PaymentService.length >= 6) {
-    return new (PaymentService as any)(prisma, payos, sepay, {} as any, config, wallet);
-  }
-
-  return new (PaymentService as any)(prisma, payos, {} as any, config, wallet);
+  return { service, sepayCalls };
 }
 
 test("shared enums expose sepay provider", () => {
@@ -154,7 +172,7 @@ test("createOrderPayment creates a new sepay payment for each attempt", async ()
     SEPAY_ACCOUNT_HOLDER: "CYNEX COMPANY",
     SEPAY_QR_TEMPLATE: "compact",
   });
-  const service = createPaymentService(prisma, config);
+  const { service, sepayCalls } = createPaymentService(prisma, config);
 
   const user = await prisma.user.create({
     data: { email: `sepay-order-${Date.now()}@test.com`, passwordHash: "x" },
@@ -193,6 +211,8 @@ test("createOrderPayment creates a new sepay payment for each attempt", async ()
     assert.equal(second.bankName, "MBBank");
     assert.notEqual(second.paymentCode, first.paymentCode);
     assert.equal(second.transferContent, second.paymentCode);
+    assert.deepEqual(sepayCalls.map((call) => call.amount), [42000, 42000]);
+    assert.deepEqual(sepayCalls.map((call) => call.paymentCode), [first.paymentCode, second.paymentCode]);
 
     const payments = await prisma.payment.findMany({
       where: { orderId: order.id },
@@ -206,7 +226,7 @@ test("createOrderPayment creates a new sepay payment for each attempt", async ()
     );
     assert.deepEqual(
       payments.map((payment) => payment.status),
-      ["pending", "pending"],
+      ["cancelled", "pending"],
     );
     assert.notEqual(payments[0]?.paymentCode, payments[1]?.paymentCode);
     assert.equal(payments[0]?.paymentCode, first.paymentCode);
@@ -229,7 +249,7 @@ test("createDeposit creates a new sepay deposit payment for each attempt", async
     SEPAY_ACCOUNT_HOLDER: "CYNEX COMPANY",
     SEPAY_QR_TEMPLATE: "compact",
   });
-  const service = createPaymentService(prisma, config);
+  const { service, sepayCalls } = createPaymentService(prisma, config);
 
   const user = await prisma.user.create({
     data: { email: `sepay-deposit-${Date.now()}@test.com`, passwordHash: "x" },
@@ -249,6 +269,8 @@ test("createDeposit creates a new sepay deposit payment for each attempt", async
     assert.equal(second.bankName, "MBBank");
     assert.notEqual(second.paymentCode, first.paymentCode);
     assert.equal(second.transferContent, second.paymentCode);
+    assert.deepEqual(sepayCalls.map((call) => call.amount), [150000, 150000]);
+    assert.deepEqual(sepayCalls.map((call) => call.paymentCode), [first.paymentCode, second.paymentCode]);
 
     const payments = await prisma.payment.findMany({
       where: { userId: user.id, isDeposit: true },
@@ -262,7 +284,7 @@ test("createDeposit creates a new sepay deposit payment for each attempt", async
     );
     assert.deepEqual(
       payments.map((payment) => payment.status),
-      ["pending", "pending"],
+      ["cancelled", "pending"],
     );
     assert.equal(payments[0]?.amount, 150000);
     assert.equal(payments[1]?.amount, 150000);

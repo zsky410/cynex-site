@@ -26,6 +26,7 @@ export class PaymentService {
   constructor(
     private readonly prisma: PrismaService,
     private readonly payos: PayosService,
+    private readonly sepay: SepayService,
     private readonly queue: QueueService,
     private readonly config: ConfigService,
     private readonly wallet: WalletService,
@@ -33,22 +34,35 @@ export class PaymentService {
 
   async createDeposit(userId: string, amount: number) {
     const paymentCode = genSepayPaymentCode();
-    const sepay = new SepayService(this.config);
-    const payload = sepay.createPaymentPayload({
+    const payload = this.sepay.createPaymentPayload({
       paymentCode,
       amount,
     });
 
-    const payment = await this.prisma.payment.create({
-      data: {
-        paymentCode,
-        userId,
-        amount,
-        provider: "sepay",
-        isDeposit: true,
-        status: "pending",
-        qrCode: payload.qrCode,
-      },
+    const payment = await this.prisma.$transaction(async (tx) => {
+      await tx.payment.updateMany({
+        where: {
+          userId,
+          isDeposit: true,
+          provider: "sepay",
+          status: "pending",
+        },
+        data: {
+          status: "cancelled",
+        },
+      });
+
+      return tx.payment.create({
+        data: {
+          paymentCode,
+          userId,
+          amount,
+          provider: "sepay",
+          isDeposit: true,
+          status: "pending",
+          qrCode: payload.qrCode,
+        },
+      });
     });
 
     return {
@@ -66,22 +80,34 @@ export class PaymentService {
     }
 
     const paymentCode = genSepayPaymentCode();
-    const sepay = new SepayService(this.config);
-    const payload = sepay.createPaymentPayload({
+    const payload = this.sepay.createPaymentPayload({
       paymentCode,
       amount: order.totalAmount,
     });
 
-    const payment = await this.prisma.payment.create({
-      data: {
-        paymentCode,
-        orderId: order.id,
-        userId,
-        amount: order.totalAmount,
-        provider: "sepay",
-        status: "pending",
-        qrCode: payload.qrCode,
-      },
+    const payment = await this.prisma.$transaction(async (tx) => {
+      await tx.payment.updateMany({
+        where: {
+          orderId: order.id,
+          provider: "sepay",
+          status: "pending",
+        },
+        data: {
+          status: "cancelled",
+        },
+      });
+
+      return tx.payment.create({
+        data: {
+          paymentCode,
+          orderId: order.id,
+          userId,
+          amount: order.totalAmount,
+          provider: "sepay",
+          status: "pending",
+          qrCode: payload.qrCode,
+        },
+      });
     });
 
     return {
