@@ -1,13 +1,17 @@
-import { Button, Form, Input, Select, Space } from "antd";
+import { Button, Form, Input, Select } from "antd";
 import type { ColumnsType } from "antd/es/table";
 import { useEffect, useMemo, useState } from "react";
 import { useNavigate, useSearchParams } from "react-router-dom";
 import { AsyncState } from "../../components/common/AsyncState";
+import { StandardBulkActions } from "../../components/common/StandardBulkActions";
 import { FilterBar } from "../../components/common/FilterBar";
 import { PageHeader } from "../../components/common/PageHeader";
 import { ResourceTable } from "../../components/common/ResourceTable";
+import { useBulkDelete } from "../../components/common/useBulkDelete";
+import { useListSelection } from "../../components/common/useListSelection";
 import { StatusTag } from "../../components/common/StatusTag";
 import { listResource } from "../../lib/admin-api";
+import { getDisplayLabel } from "../../lib/display-labels";
 import { labels } from "../../lib/labels";
 
 type ProductRecord = {
@@ -24,12 +28,10 @@ type ProductFilterForm = {
   status?: string;
 };
 
-const statusOptions = [
-  { value: "draft", label: "Draft" },
-  { value: "active", label: "Active" },
-  { value: "inactive", label: "Inactive" },
-  { value: "archived", label: "Archived" },
-];
+const statusOptions = ["draft", "active", "inactive", "archived"].map((value) => ({
+  value,
+  label: getDisplayLabel(value),
+}));
 
 export default function ProductListPage() {
   const navigate = useNavigate();
@@ -44,6 +46,7 @@ export default function ProductListPage() {
   const perPage = Number(searchParams.get("perPage") ?? "25");
   const currentStatus = searchParams.get("status") ?? undefined;
   const currentQuery = searchParams.get("q") ?? undefined;
+  const selection = useListSelection<ProductRecord>(searchParams.toString());
 
   useEffect(() => {
     form.setFieldsValue({ q: currentQuery, status: currentStatus });
@@ -80,12 +83,31 @@ export default function ProductListPage() {
         title: labels.status,
         dataIndex: "status",
         key: "status",
-        render: (status: string) => <StatusTag status={status} label={status} />,
+        render: (status: string) => <StatusTag status={status} />,
       },
       { title: "Thứ tự", dataIndex: "sortOrder", key: "sortOrder", width: 120 },
+      {
+        title: labels.actions,
+        key: "actions",
+        render: (_, record) => (
+          <Button type="link" onClick={() => navigate(`/shell/products/${record.id}/edit`)}>
+            {labels.edit}
+          </Button>
+        ),
+      },
     ],
-    [],
+    [navigate],
   );
+
+  const { deleting, deleteSelected } = useBulkDelete({
+    resource: "products",
+    selectedRowKeys: selection.selectedRowKeys,
+    onDeleted: (deletedIds) => {
+      setRows((currentRows) => currentRows.filter((row) => !deletedIds.includes(row.id)));
+      setTotal((currentTotal) => Math.max(0, currentTotal - deletedIds.length));
+      selection.clearSelection();
+    },
+  });
 
   function updateParams(next: Record<string, string | undefined>) {
     const params = new URLSearchParams(searchParams);
@@ -152,16 +174,21 @@ export default function ProductListPage() {
               }),
             )
           }
+          rowSelection={{
+            selectedRowKeys: selection.selectedRowKeys,
+            onChange: selection.onSelectionChange,
+            toolbar: (
+              <StandardBulkActions<ProductRecord>
+                selectedRows={selection.selectedRows}
+                onClear={selection.clearSelection}
+                onEdit={(row) => navigate(`/shell/products/${row.id}/edit`)}
+                onDelete={deleteSelected}
+                deleting={deleting}
+              />
+            ),
+          }}
         />
       </AsyncState>
-
-      <Space style={{ marginTop: 12 }}>
-        {rows.map((row) => (
-          <Button key={row.id} type="link" onClick={() => navigate(`/shell/products/${row.id}/edit`)}>
-            Sửa {row.name}
-          </Button>
-        ))}
-      </Space>
     </>
   );
 }

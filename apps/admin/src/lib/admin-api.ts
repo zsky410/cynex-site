@@ -89,3 +89,27 @@ export function deleteResource<T>(resource: string, id: string | number) {
     method: "DELETE",
   });
 }
+
+export async function deleteManyResources(resource: string, ids: Array<string | number>) {
+  const results = await Promise.allSettled(ids.map((id) => deleteResource(resource, id)));
+
+  return results.reduce<{
+    succeededIds: Array<string | number>;
+    failed: Array<{ id: string | number; message: string }>;
+  }>(
+    (accumulator, result, index) => {
+      const id = ids[index];
+      if (result.status === "fulfilled") {
+        accumulator.succeededIds.push(id);
+        return accumulator;
+      }
+
+      accumulator.failed.push({
+        id,
+        message: result.reason instanceof Error ? result.reason.message : "Không thể xóa bản ghi",
+      });
+      return accumulator;
+    },
+    { succeededIds: [], failed: [] },
+  );
+}

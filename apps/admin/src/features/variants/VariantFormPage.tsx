@@ -9,6 +9,7 @@ import {
   listResource,
   updateResource,
 } from "../../lib/admin-api";
+import { getDisplayLabel } from "../../lib/display-labels";
 import { labels } from "../../lib/labels";
 import { notifyError, notifySuccess } from "../../lib/notifications";
 
@@ -43,12 +44,10 @@ const fulfillmentOptions = [
   { value: "MANUAL_DELIVERY", label: "Giao thủ công" },
 ];
 
-const statusOptions = [
-  { value: "active", label: "Active" },
-  { value: "inactive", label: "Inactive" },
-  { value: "out_of_stock", label: "Out of stock" },
-  { value: "archived", label: "Archived" },
-];
+const statusOptions = ["active", "inactive", "out_of_stock", "archived"].map((value) => ({
+  value,
+  label: getDisplayLabel(value),
+}));
 
 export default function VariantFormPage() {
   const navigate = useNavigate();
@@ -154,13 +153,13 @@ export default function VariantFormPage() {
               <InputNumber style={{ width: "100%" }} />
             </Form.Item>
             <Form.Item
-              label="Fulfillment type"
+              label="Kiểu giao hàng"
               name="fulfillmentType"
               rules={[{ required: true, message: "Chọn phương thức fulfillment" }]}
             >
               <Select options={fulfillmentOptions} />
             </Form.Item>
-            <Form.Item label="Default source ID" name="defaultSourceId">
+            <Form.Item label="Source ID mặc định" name="defaultSourceId">
               <Input />
             </Form.Item>
             <Form.Item label="Số ngày bảo hành" name="warrantyDays">

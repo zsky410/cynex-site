@@ -1,4 +1,4 @@
-import { Form, Select } from "antd";
+import { Button, Form, Select } from "antd";
 import type { ColumnsType } from "antd/es/table";
 import { useEffect, useMemo, useState } from "react";
 import { useNavigate, useSearchParams } from "react-router-dom";
@@ -6,8 +6,11 @@ import { AsyncState } from "../../components/common/AsyncState";
 import { FilterBar } from "../../components/common/FilterBar";
 import { PageHeader } from "../../components/common/PageHeader";
 import { ResourceTable } from "../../components/common/ResourceTable";
+import { StandardBulkActions } from "../../components/common/StandardBulkActions";
+import { useListSelection } from "../../components/common/useListSelection";
 import { StatusTag } from "../../components/common/StatusTag";
 import { listResource } from "../../lib/admin-api";
+import { getDisplayLabel } from "../../lib/display-labels";
 import { labels } from "../../lib/labels";
 
 type OrderRecord = {
@@ -26,22 +29,22 @@ type OrderFilterValues = {
 };
 
 const paymentStatusOptions = [
-  { value: "pending", label: "pending" },
-  { value: "paid", label: "paid" },
-  { value: "failed", label: "failed" },
-  { value: "cancelled", label: "cancelled" },
-  { value: "refunded", label: "refunded" },
+  { value: "pending", label: getDisplayLabel("pending") },
+  { value: "paid", label: getDisplayLabel("paid") },
+  { value: "failed", label: getDisplayLabel("failed") },
+  { value: "cancelled", label: getDisplayLabel("cancelled") },
+  { value: "refunded", label: getDisplayLabel("refunded") },
 ];
 
 const fulfillmentStatusOptions = [
-  { value: "waiting_payment", label: "waiting_payment" },
-  { value: "paid_waiting_admin", label: "paid_waiting_admin" },
-  { value: "processing", label: "processing" },
-  { value: "assigned", label: "assigned" },
-  { value: "delivered", label: "delivered" },
-  { value: "failed", label: "failed" },
-  { value: "cancelled", label: "cancelled" },
-  { value: "refunded", label: "refunded" },
+  { value: "waiting_payment", label: getDisplayLabel("waiting_payment") },
+  { value: "paid_waiting_admin", label: getDisplayLabel("paid_waiting_admin") },
+  { value: "processing", label: getDisplayLabel("processing") },
+  { value: "assigned", label: getDisplayLabel("assigned") },
+  { value: "delivered", label: getDisplayLabel("delivered") },
+  { value: "failed", label: getDisplayLabel("failed") },
+  { value: "cancelled", label: getDisplayLabel("cancelled") },
+  { value: "refunded", label: getDisplayLabel("refunded") },
 ];
 
 export default function OrderListPage() {
@@ -57,6 +60,7 @@ export default function OrderListPage() {
   const perPage = Number(searchParams.get("perPage") ?? "25");
   const paymentStatus = searchParams.get("paymentStatus") ?? undefined;
   const fulfillmentStatus = searchParams.get("fulfillmentStatus") ?? undefined;
+  const selection = useListSelection<OrderRecord>(searchParams.toString());
 
   useEffect(() => {
     form.setFieldsValue({ paymentStatus, fulfillmentStatus });
@@ -103,13 +107,13 @@ export default function OrderListPage() {
         title: "Thanh toán",
         dataIndex: "paymentStatus",
         key: "paymentStatus",
-        render: (status: string) => <StatusTag status={status} label={status} />,
+        render: (status: string) => <StatusTag status={status} />,
       },
       {
-        title: "Fulfillment",
+        title: "Giao hàng",
         dataIndex: "fulfillmentStatus",
         key: "fulfillmentStatus",
-        render: (status: string) => <StatusTag status={status} label={status} />,
+        render: (status: string) => <StatusTag status={status} />,
       },
       {
         title: "Tạo lúc",
@@ -118,8 +122,17 @@ export default function OrderListPage() {
         render: (value: string) =>
           value ? new Intl.DateTimeFormat("vi-VN", { dateStyle: "short", timeStyle: "short" }).format(new Date(value)) : "-",
       },
+      {
+        title: labels.actions,
+        key: "actions",
+        render: (_, record) => (
+          <Button type="link" onClick={() => navigate(`/shell/orders/${record.id}`)}>
+            Chi tiết
+          </Button>
+        ),
+      },
     ],
-    [],
+    [navigate],
   );
 
   return (
@@ -149,10 +162,10 @@ export default function OrderListPage() {
             setSearchParams(new URLSearchParams({ page: "1", perPage: String(perPage) }));
           }}
         >
-          <Form.Item label="Payment status" name="paymentStatus" style={{ marginBottom: 0, minWidth: 200 }}>
+          <Form.Item label="Trạng thái thanh toán" name="paymentStatus" style={{ marginBottom: 0, minWidth: 200 }}>
             <Select allowClear options={paymentStatusOptions} />
           </Form.Item>
-          <Form.Item label="Fulfillment status" name="fulfillmentStatus" style={{ marginBottom: 0, minWidth: 220 }}>
+          <Form.Item label="Trạng thái giao hàng" name="fulfillmentStatus" style={{ marginBottom: 0, minWidth: 220 }}>
             <Select allowClear options={fulfillmentStatusOptions} />
           </Form.Item>
         </FilterBar>
@@ -176,23 +189,19 @@ export default function OrderListPage() {
               }),
             )
           }
+          rowSelection={{
+            selectedRowKeys: selection.selectedRowKeys,
+            onChange: selection.onSelectionChange,
+            toolbar: (
+              <StandardBulkActions<OrderRecord>
+                selectedRows={selection.selectedRows}
+                onClear={selection.clearSelection}
+                onView={(row) => navigate(`/shell/orders/${row.id}`)}
+              />
+            ),
+          }}
         />
       </AsyncState>
-      <div style={{ marginTop: 12 }}>
-        {rows.map((row) => (
-          <a
-            key={row.id}
-            onClick={(event) => {
-              event.preventDefault();
-              navigate(`/shell/orders/${row.id}`);
-            }}
-            href={`/shell/orders/${row.id}`}
-            style={{ display: "inline-block", marginRight: 12 }}
-          >
-            Xem {row.orderCode}
-          </a>
-        ))}
-      </div>
     </>
   );
 }

@@ -38,6 +38,7 @@ Thumbs.db
 # cursor / IDE (keep .cursor/rules for project conventions)
 .cursor/settings.json
 .cursor/plans/
+docs/superpowers/plans/
 .vscode/
 .idea/
 .superpowers/

@@ -32,7 +32,7 @@ export function AdminSidebar({ collapsed }: AdminSidebarProps) {
         <Typography.Text strong>{collapsed ? "CX" : "Cynex Admin"}</Typography.Text>
         {!collapsed ? (
           <Typography.Paragraph type="secondary" style={{ margin: 0 }}>
-            Shell Ant Design
+            Điều hành storefront
           </Typography.Paragraph>
         ) : null}
       </div>

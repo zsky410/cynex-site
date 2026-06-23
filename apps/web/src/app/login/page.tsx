@@ -5,11 +5,13 @@ import { useRouter, useSearchParams } from "next/navigation";
 import { ArrowRight, Lock, Mail } from "lucide-react";
 import { Suspense, useState } from "react";
 import { AuthField, AuthLink, AuthShell, AuthSubmitButton } from "@/components/auth/AuthShell";
+import { buildAuthHref, resolvePostAuthRedirect } from "@/lib/auth-redirect";
 import { apiFetch, setSession, ApiError } from "@/lib/api";
 
 function LoginForm() {
   const router = useRouter();
   const params = useSearchParams();
+  const next = params.get("next");
   const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
   const [error, setError] = useState<string | null>(null);
@@ -25,7 +27,7 @@ function LoginForm() {
         body: JSON.stringify({ email, password }),
       });
       setSession(res.accessToken, res.refreshToken);
-      router.push(params.get("next") ?? "/orders");
+      router.push(resolvePostAuthRedirect(next, "/orders"));
     } catch (e) {
       setError(e instanceof ApiError ? e.message : "Đăng nhập thất bại");
     } finally {
@@ -39,7 +41,7 @@ function LoginForm() {
       subtitle="Truy cập vào hệ sinh thái kỹ thuật số cao cấp của bạn"
       footer={
         <>
-          Chưa có tài khoản? <AuthLink href="/register">Đăng ký ngay</AuthLink>
+          Chưa có tài khoản? <AuthLink href={buildAuthHref("/register", next)}>Đăng ký ngay</AuthLink>
         </>
       }
     >

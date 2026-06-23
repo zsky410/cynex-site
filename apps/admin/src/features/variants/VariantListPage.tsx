@@ -6,8 +6,12 @@ import { AsyncState } from "../../components/common/AsyncState";
 import { FilterBar } from "../../components/common/FilterBar";
 import { PageHeader } from "../../components/common/PageHeader";
 import { ResourceTable } from "../../components/common/ResourceTable";
+import { StandardBulkActions } from "../../components/common/StandardBulkActions";
+import { useBulkDelete } from "../../components/common/useBulkDelete";
+import { useListSelection } from "../../components/common/useListSelection";
 import { StatusTag } from "../../components/common/StatusTag";
 import { listResource } from "../../lib/admin-api";
+import { getDisplayLabel } from "../../lib/display-labels";
 import { labels } from "../../lib/labels";
 
 type VariantRecord = {
@@ -24,12 +28,10 @@ type VariantFilterForm = {
   status?: string;
 };
 
-const statusOptions = [
-  { value: "active", label: "Active" },
-  { value: "inactive", label: "Inactive" },
-  { value: "out_of_stock", label: "Out of stock" },
-  { value: "archived", label: "Archived" },
-];
+const statusOptions = ["active", "inactive", "out_of_stock", "archived"].map((value) => ({
+  value,
+  label: getDisplayLabel(value),
+}));
 
 export default function VariantListPage() {
   const navigate = useNavigate();
@@ -44,6 +46,7 @@ export default function VariantListPage() {
   const perPage = Number(searchParams.get("perPage") ?? "25");
   const currentStatus = searchParams.get("status") ?? undefined;
   const currentQuery = searchParams.get("q") ?? undefined;
+  const selection = useListSelection<VariantRecord>(searchParams.toString());
 
   useEffect(() => {
     form.setFieldsValue({ q: currentQuery, status: currentStatus });
@@ -81,12 +84,12 @@ export default function VariantListPage() {
         key: "price",
         render: (value: number) => `${new Intl.NumberFormat("vi-VN").format(value)}đ`,
       },
-      { title: "Fulfillment", dataIndex: "fulfillmentType", key: "fulfillmentType" },
+      { title: "Kiểu giao hàng", dataIndex: "fulfillmentType", key: "fulfillmentType", render: (value: string) => getDisplayLabel(value) },
       {
         title: labels.status,
         dataIndex: "status",
         key: "status",
-        render: (status: string) => <StatusTag status={status} label={status} />,
+        render: (status: string) => <StatusTag status={status} />,
       },
       {
         title: labels.actions,
@@ -100,6 +103,16 @@ export default function VariantListPage() {
     ],
     [navigate],
   );
+
+  const { deleting, deleteSelected } = useBulkDelete({
+    resource: "product-variants",
+    selectedRowKeys: selection.selectedRowKeys,
+    onDeleted: (deletedIds) => {
+      setRows((currentRows) => currentRows.filter((row) => !deletedIds.includes(row.id)));
+      setTotal((currentTotal) => Math.max(0, currentTotal - deletedIds.length));
+      selection.clearSelection();
+    },
+  });
 
   function setPageParams(nextPage: number, nextPageSize: number) {
     setSearchParams(
@@ -162,6 +175,19 @@ export default function VariantListPage() {
           perPage={perPage}
           total={total}
           onChangePage={setPageParams}
+          rowSelection={{
+            selectedRowKeys: selection.selectedRowKeys,
+            onChange: selection.onSelectionChange,
+            toolbar: (
+              <StandardBulkActions<VariantRecord>
+                selectedRows={selection.selectedRows}
+                onClear={selection.clearSelection}
+                onEdit={(row) => navigate(`/shell/variants/${row.id}/edit`)}
+                onDelete={deleteSelected}
+                deleting={deleting}
+              />
+            ),
+          }}
         />
       </AsyncState>
     </>

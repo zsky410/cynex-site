@@ -5,6 +5,7 @@ import { adminFetch, getResource, listResource } from "../../lib/admin-api";
 import { AsyncState } from "../../components/common/AsyncState";
 import { PageHeader } from "../../components/common/PageHeader";
 import { StatusTag } from "../../components/common/StatusTag";
+import { getDisplayLabel } from "../../lib/display-labels";
 import { labels } from "../../lib/labels";
 import { notifyError, notifySuccess } from "../../lib/notifications";
 
@@ -92,7 +93,7 @@ function FulfillmentActions({ item, onDone }: { item: OrderItem; onDone: () => P
   }, [assignable, item.productVariantId]);
 
   if (!fulfillment) {
-    return <Typography.Text type="secondary">Không có fulfillment</Typography.Text>;
+    return <Typography.Text type="secondary">Không có bản ghi giao hàng</Typography.Text>;
   }
 
   async function run(action: () => Promise<unknown>, successMessage: string) {
@@ -102,7 +103,7 @@ function FulfillmentActions({ item, onDone }: { item: OrderItem; onDone: () => P
       notifySuccess(successMessage);
       await onDone();
     } catch (err) {
-      notifyError(err instanceof Error ? err.message : "Không thể cập nhật fulfillment");
+      notifyError(err instanceof Error ? err.message : "Không thể cập nhật giao hàng");
     } finally {
       setBusy(false);
     }
@@ -115,8 +116,8 @@ function FulfillmentActions({ item, onDone }: { item: OrderItem; onDone: () => P
           {item.product?.name ?? "Sản phẩm"} - {item.variant?.name ?? "Biến thể"}
         </Typography.Text>
         <Space wrap>
-          <StatusTag status={status} label={status} />
-          <Typography.Text type="secondary">{item.fulfillmentType}</Typography.Text>
+          <StatusTag status={status} />
+          <Typography.Text type="secondary">{getDisplayLabel(item.fulfillmentType)}</Typography.Text>
         </Space>
 
         {status === "paid_waiting_admin" ? (
@@ -141,7 +142,7 @@ function FulfillmentActions({ item, onDone }: { item: OrderItem; onDone: () => P
                 placeholder="Chọn tài khoản kho"
                 options={accounts.map((account) => ({
                   value: account.id,
-                  label: `${account.username ?? account.id} · ${account.accountType ?? "-"} · ${account.usedSlots ?? 0}/${account.maxSlots ?? 0} · ${account.status ?? "-"}`,
+                  label: `${account.username ?? account.id} · ${getDisplayLabel(account.accountType) ?? "-"} · ${account.usedSlots ?? 0}/${account.maxSlots ?? 0} · ${getDisplayLabel(account.status) ?? "-"}`,
                 }))}
                 value={accountId}
                 onChange={setAccountId}
@@ -170,7 +171,7 @@ function FulfillmentActions({ item, onDone }: { item: OrderItem; onDone: () => P
                 placeholder="Chọn license key"
                 options={keys.map((key) => ({
                   value: key.id,
-                  label: `${key.id.slice(0, 8)}… · ${key.status ?? "-"}`,
+                  label: `${key.id.slice(0, 8)}… · ${getDisplayLabel(key.status) ?? "-"}`,
                 }))}
                 value={keyId}
                 onChange={setKeyId}
@@ -321,7 +322,7 @@ export default function OrderDetailPage() {
     <>
       <PageHeader
         title={`${labels.orders}${order?.orderCode ? ` · ${order.orderCode}` : ""}`}
-        subtitle="Chi tiết đơn hàng và các thao tác fulfillment giữ nguyên endpoint từ màn hình legacy."
+        subtitle="Chi tiết đơn hàng và các thao tác giao hàng giữ nguyên endpoint từ màn hình legacy."
         extra={<Button onClick={() => navigate("/shell/orders")}>Quay lại danh sách</Button>}
       />
       <AsyncState loading={loading} error={error}>
@@ -337,10 +338,10 @@ export default function OrderDetailPage() {
                   {new Intl.NumberFormat("vi-VN").format(order.totalAmount)}đ
                 </Descriptions.Item>
                 <Descriptions.Item label="Thanh toán">
-                  <StatusTag status={order.paymentStatus} label={order.paymentStatus} />
+                  <StatusTag status={order.paymentStatus} />
                 </Descriptions.Item>
-                <Descriptions.Item label="Fulfillment">
-                  <StatusTag status={order.fulfillmentStatus} label={order.fulfillmentStatus} />
+                <Descriptions.Item label="Giao hàng">
+                  <StatusTag status={order.fulfillmentStatus} />
                 </Descriptions.Item>
                 <Descriptions.Item label="Đã thanh toán">{formatDate(order.paidAt)}</Descriptions.Item>
                 <Descriptions.Item label="Đã giao">{formatDate(order.deliveredAt)}</Descriptions.Item>

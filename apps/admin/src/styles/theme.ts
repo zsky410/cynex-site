@@ -2,33 +2,48 @@ import type { ThemeConfig } from "antd";
 
 export const adminTheme: ThemeConfig = {
   token: {
-    colorPrimary: "#1677ff",
-    colorInfo: "#1677ff",
-    colorSuccess: "#19a35b",
-    colorWarning: "#d48806",
-    colorError: "#d4380d",
-    borderRadius: 14,
+    colorPrimary: "#0a74b8",
+    colorInfo: "#0a74b8",
+    colorSuccess: "#15803d",
+    colorWarning: "#b45309",
+    colorError: "#b91c1c",
+    borderRadius: 16,
     fontFamily:
       "\"Be Vietnam Pro\", \"Inter\", \"Segoe UI\", system-ui, -apple-system, BlinkMacSystemFont, sans-serif",
-    colorBgLayout: "#f4f7fb",
+    colorBgLayout: "#f4f6fb",
     colorBgContainer: "#ffffff",
+    colorBorderSecondary: "#d9e5f2",
+    colorText: "#16324f",
   },
   components: {
     Layout: {
-      headerBg: "#ffffff",
-      siderBg: "#ffffff",
-      bodyBg: "#f4f7fb",
+      headerBg: "rgba(255,255,255,0.92)",
+      siderBg: "#f7fbff",
+      bodyBg: "#f4f6fb",
     },
     Card: {
-      borderRadiusLG: 18,
+      borderRadiusLG: 20,
     },
     Menu: {
-      itemBorderRadius: 12,
-      itemMarginInline: 10,
-      itemMarginBlock: 4,
+      itemBorderRadius: 14,
+      itemMarginInline: 8,
+      itemMarginBlock: 6,
+      itemSelectedBg: "#e7f2fb",
+      itemSelectedColor: "#0a74b8",
+      itemHoverColor: "#0a74b8",
     },
     Button: {
-      borderRadius: 12,
+      borderRadius: 14,
+      controlHeight: 40,
+    },
+    Breadcrumb: {
+      itemColor: "#69839d",
+      lastItemColor: "#16324f",
+    },
+    Table: {
+      borderColor: "#e1eaf4",
+      headerBg: "#f4f8fd",
+      rowHoverBg: "#f8fbff",
     },
   },
 };

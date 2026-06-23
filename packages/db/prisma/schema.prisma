@@ -181,6 +181,7 @@ model User {
   id            String   @id @default(cuid())
   email         String   @unique
   passwordHash  String
+  sessionVersion Int     @default(0)
   name          String?
   walletBalance Int      @default(0)
   isLocked      Boolean  @default(false)

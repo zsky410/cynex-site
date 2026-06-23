@@ -14,14 +14,8 @@
   "dependencies": {
     "@ant-design/icons": "^6.0.1",
     "@cynex/shared": "workspace:*",
-    "@emotion/react": "^11.14.0",
-    "@emotion/styled": "^11.14.0",
-    "@mui/icons-material": "^6.3.1",
-    "@mui/material": "^6.3.1",
     "antd": "6.4.5",
-    "dayjs": "^1.11.13",
     "react": "^19.0.0",
-    "react-admin": "^5.4.4",
     "react-dom": "^19.0.0",
     "react-router-dom": "^7.18.0"
   },

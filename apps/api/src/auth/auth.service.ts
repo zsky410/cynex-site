@@ -33,7 +33,10 @@ export class AuthService {
         name: dto.name,
       },
     });
-    const pair = await this.tokens.issue(user.id, "user", { email: user.email });
+    const pair = await this.tokens.issue(user.id, "user", {
+      email: user.email,
+      sessionVersion: user.sessionVersion,
+    });
     return { ...pair, user: { id: user.id, email: user.email } };
   }
 
@@ -50,7 +53,10 @@ export class AuthService {
         );
     if (!user || !ok) throw new UnauthorizedException("Email hoặc mật khẩu không đúng");
     if (user.isLocked) throw new UnauthorizedException("Tài khoản đã bị khóa");
-    const pair = await this.tokens.issue(user.id, "user", { email: user.email });
+    const pair = await this.tokens.issue(user.id, "user", {
+      email: user.email,
+      sessionVersion: user.sessionVersion,
+    });
     return { ...pair, user: { id: user.id, email: user.email } };
   }
 
@@ -59,6 +65,12 @@ export class AuthService {
     const user = await this.prisma.user.findUnique({ where: { email } });
     if (user) {
       const raw = randomBytes(32).toString("hex");
+      await this.prisma.passwordResetToken.deleteMany({
+        where: {
+          userId: user.id,
+          usedAt: null,
+        },
+      });
       await this.prisma.passwordResetToken.create({
         data: {
           userId: user.id,
@@ -87,18 +99,18 @@ export class AuthService {
     await this.prisma.$transaction([
       this.prisma.user.update({
         where: { id: record.userId },
-        data: { passwordHash: await hashPassword(newPassword) },
+        data: {
+          passwordHash: await hashPassword(newPassword),
+          sessionVersion: { increment: 1 },
+        },
       }),
-      this.prisma.passwordResetToken.update({
-        where: { id: record.id },
-        data: { usedAt: new Date() },
-      }),
+      this.prisma.passwordResetToken.deleteMany({ where: { userId: record.userId } }),
     ]);
     return { ok: true };
   }
 
   async refresh(refreshToken: string): Promise<TokenPair> {
-    let payload: { sub: string; type: Principal };
+    let payload: { sub: string; type: Principal; [k: string]: unknown };
     try {
       payload = await this.tokens.verifyRefresh(refreshToken);
     } catch {
@@ -107,7 +119,13 @@ export class AuthService {
     if (payload.type === "user") {
       const user = await this.prisma.user.findUnique({ where: { id: payload.sub } });
       if (!user || user.isLocked) throw new UnauthorizedException("Phiên đăng nhập đã hết hạn");
-      return this.tokens.issue(user.id, "user", { email: user.email });
+      if (Number(payload.sessionVersion ?? 0) !== user.sessionVersion) {
+        throw new UnauthorizedException("Phiên đăng nhập đã hết hạn");
+      }
+      return this.tokens.issue(user.id, "user", {
+        email: user.email,
+        sessionVersion: user.sessionVersion,
+      });
     }
     const admin = await this.prisma.admin.findUnique({ where: { id: payload.sub } });
     if (!admin || !admin.isActive) throw new UnauthorizedException("Phiên đăng nhập đã hết hạn");
@@ -120,7 +138,10 @@ export class AuthService {
     if (!ok) throw new UnauthorizedException("Mật khẩu hiện tại không đúng");
     await this.prisma.user.update({
       where: { id: userId },
-      data: { passwordHash: await hashPassword(dto.newPassword) },
+      data: {
+        passwordHash: await hashPassword(dto.newPassword),
+        sessionVersion: { increment: 1 },
+      },
     });
     return { ok: true };
   }

@@ -2,13 +2,16 @@
 
 import { Lock, Mail, ShieldCheck, User } from "lucide-react";
 import Link from "next/link";
-import { useRouter } from "next/navigation";
-import { useState } from "react";
+import { useRouter, useSearchParams } from "next/navigation";
+import { Suspense, useState } from "react";
 import { AuthField, AuthLink, AuthShell, AuthSubmitButton } from "@/components/auth/AuthShell";
+import { buildAuthHref, resolvePostAuthRedirect } from "@/lib/auth-redirect";
 import { apiFetch, setSession, ApiError } from "@/lib/api";
 
-export default function RegisterPage() {
+function RegisterForm() {
   const router = useRouter();
+  const params = useSearchParams();
+  const next = params.get("next");
   const [name, setName] = useState("");
   const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
@@ -39,7 +42,7 @@ export default function RegisterPage() {
         body: JSON.stringify({ email, password, name: name.trim() || undefined }),
       });
       setSession(res.accessToken, res.refreshToken);
-      router.push("/products");
+      router.push(resolvePostAuthRedirect(next, "/products"));
     } catch (e) {
       setError(e instanceof ApiError ? e.message : "Đăng ký thất bại");
     } finally {
@@ -53,7 +56,7 @@ export default function RegisterPage() {
       subtitle="Trải nghiệm nền tảng dịch vụ kỹ thuật số cao cấp cùng Cynex."
       footer={
         <>
-          Bạn đã có tài khoản? <AuthLink href="/login">Đăng nhập ngay</AuthLink>
+          Bạn đã có tài khoản? <AuthLink href={buildAuthHref("/login", next)}>Đăng nhập ngay</AuthLink>
         </>
       }
     >
@@ -138,5 +141,13 @@ export default function RegisterPage() {
         <AuthSubmitButton loading={loading}>{loading ? "Đang tạo tài khoản..." : "Tạo tài khoản"}</AuthSubmitButton>
       </form>
     </AuthShell>
+  );
+}
+
+export default function RegisterPage() {
+  return (
+    <Suspense>
+      <RegisterForm />
+    </Suspense>
   );
 }

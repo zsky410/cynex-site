@@ -1,4 +1,5 @@
 import { Tag } from "antd";
+import { getDisplayLabel } from "../../lib/display-labels";
 
 const STATUS_COLOR_MAP: Record<string, string> = {
   active: "success",
@@ -24,5 +25,5 @@ export function StatusTag({ status, label }: StatusTagProps) {
   const normalizedStatus = (status ?? "unknown").toLowerCase();
   const color = STATUS_COLOR_MAP[normalizedStatus] ?? "default";
 
-  return <Tag color={color}>{label ?? normalizedStatus}</Tag>;
+  return <Tag color={color}>{label ?? getDisplayLabel(status) ?? normalizedStatus}</Tag>;
 }

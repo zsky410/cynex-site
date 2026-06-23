@@ -10,7 +10,7 @@ export function RequireAuth() {
       <Navigate
         to={LOGIN_PATH}
         replace
-        state={{ redirectTo: location.pathname }}
+        state={{ redirectTo: `${location.pathname}${location.search}${location.hash}` }}
       />
     );
   }

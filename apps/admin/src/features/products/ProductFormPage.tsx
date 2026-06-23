@@ -4,6 +4,7 @@ import { useNavigate, useParams } from "react-router-dom";
 import { AsyncState } from "../../components/common/AsyncState";
 import { PageHeader } from "../../components/common/PageHeader";
 import { createResource, getResource, updateResource } from "../../lib/admin-api";
+import { getDisplayLabel } from "../../lib/display-labels";
 import { labels } from "../../lib/labels";
 import { notifyError, notifySuccess } from "../../lib/notifications";
 
@@ -19,12 +20,10 @@ type ProductPayload = {
 
 type ProductRecord = ProductPayload & { id: string };
 
-const statusOptions = [
-  { value: "draft", label: "Draft" },
-  { value: "active", label: "Active" },
-  { value: "inactive", label: "Inactive" },
-  { value: "archived", label: "Archived" },
-];
+const statusOptions = ["draft", "active", "inactive", "archived"].map((value) => ({
+  value,
+  label: getDisplayLabel(value),
+}));
 
 export default function ProductFormPage() {
   const navigate = useNavigate();
