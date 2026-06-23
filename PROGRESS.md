@@ -11,7 +11,7 @@ Last updated: after replacing PayOS with SePay for order checkout, wallet deposi
 | Phase | Scope | Status |
 |-------|-------|--------|
 | Phase 0 | Monorepo foundation (pnpm+turbo, packages, docker, scaffolds, Dockerfiles, README) | ✅ DONE & verified |
-| Phase 1 | Core commerce (auth, catalog, orders, payOS pay + idempotent webhook, email job, web + admin) | ✅ DONE & verified |
+| Phase 1 | Core commerce (auth, catalog, orders, SePay pay + idempotent webhook, email job, web + admin) | ✅ DONE & verified |
 | Phase 2 | Wallet (read, deposit, pay-with-wallet, admin adjustment, web + admin UI) | ✅ DONE & verified |
 | Phase 3 | Source & inventory (sources, source-orders, inventory accounts/keys with AES-256-GCM, admin CRUD + UI) | ✅ DONE & verified |
 | Phase 4 | Manual fulfillment (assign account/key, delivery email, user reveal secret) | ✅ DONE & verified |
@@ -172,7 +172,7 @@ pnpm build                     # full monorepo build
   `/forgot-password`, `/reset-password`, `/checkout/[orderCode]` (+ return/cancel),
   `/orders`, `/orders/[orderCode]`, `/orders/[orderCode]/warranty`, `/wallet`, `/warranty`
 - `apps/web` checkout + wallet now render SePay QR / transfer instructions directly instead of
-  redirecting to a PayOS checkout URL
+  redirecting to a hosted payment URL
 - `lib/api.ts` (token + fetch), `lib/utils.ts`, `lib/status.ts`
 
 ### apps/admin (React Admin + MUI)
@@ -317,5 +317,5 @@ The full Phase 5 feature set is now implemented:
 ---
 
 ## Open env vars to fill for full functionality (`.env`)
-`PAYOS_CLIENT_ID/API_KEY/CHECKSUM_KEY`, `RESEND_API_KEY`, `R2_*`, `SENTRY_DSN`.
+`SEPAY_BANK_NAME`, `SEPAY_BANK_ACCOUNT`, `SEPAY_ACCOUNT_HOLDER`, `SEPAY_QR_TEMPLATE`, `SEPAY_WEBHOOK_SECRET`, `RESEND_API_KEY`, `R2_*`, `SENTRY_DSN`.
 `ENCRYPTION_KEY`, `JWT_*` already have working dev values.

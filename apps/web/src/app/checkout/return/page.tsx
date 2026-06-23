@@ -14,7 +14,7 @@ export default function CheckoutReturnPage() {
           Cảm ơn bạn!
         </h1>
         <p className="mt-4 text-sm leading-7 text-slate-500">
-          Thanh toán đang được xác nhận. Trạng thái đơn sẽ cập nhật trong giây lát sau khi payOS gửi webhook.
+          Thanh toán đang được xác nhận. Trạng thái đơn sẽ cập nhật trong giây lát sau khi SePay gửi webhook.
         </p>
         <p className="mt-2 inline-flex items-center gap-2 rounded-full bg-amber-50 px-4 py-2 text-xs font-medium text-amber-800">
           <Clock3 className="h-3.5 w-3.5" />
