@@ -22,6 +22,7 @@
     "@nestjs/passport": "^11.0.5",
     "@nestjs/platform-express": "^11.0.5",
     "@nestjs/throttler": "^6.4.0",
+    "@payos/node": "^1.0.8",
     "argon2": "^0.41.1",
     "bullmq": "^5.34.10",
     "ioredis": "^5.4.2",
