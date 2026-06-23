@@ -73,3 +73,97 @@ test("changePassword rejects wrong current password", async () => {
     await prisma.user.delete({ where: { id: user.id } });
   }
 });
+
+test("register creates a user and returns a token pair", async () => {
+  const email = `register-${Date.now()}@test.com`;
+  const service = authService();
+
+  try {
+    const result = await service.register({
+      email,
+      password: "password12345",
+      name: "Register User",
+    });
+
+    assert.equal(result.user.email, email);
+    assert.ok(result.accessToken);
+    assert.ok(result.refreshToken);
+
+    const stored = await prisma.user.findUniqueOrThrow({ where: { email } });
+    assert.equal(stored.name, "Register User");
+    assert.equal(await argon2.verify(stored.passwordHash, "password12345"), true);
+  } finally {
+    await prisma.user.deleteMany({ where: { email } });
+  }
+});
+
+test("login rejects a locked account", async () => {
+  const email = `locked-${Date.now()}@test.com`;
+  const user = await prisma.user.create({
+    data: {
+      email,
+      passwordHash: await argon2.hash("password12345"),
+      isLocked: true,
+    },
+  });
+  const service = authService();
+
+  try {
+    await assert.rejects(
+      () => service.login({ email, password: "password12345" }),
+      UnauthorizedException,
+    );
+  } finally {
+    await prisma.user.delete({ where: { id: user.id } });
+  }
+});
+
+test("changePassword invalidates previously issued refresh tokens", async () => {
+  const email = `changepw-refresh-${Date.now()}@test.com`;
+  const user = await prisma.user.create({
+    data: { email, passwordHash: await argon2.hash("oldpassword1") },
+  });
+  const service = authService();
+  const oldRefresh = `refresh-${user.id}-user`;
+
+  try {
+    await service.changePassword(user.id, {
+      currentPassword: "oldpassword1",
+      newPassword: "newpassword2",
+    });
+
+    await assert.rejects(() => service.refresh(oldRefresh), UnauthorizedException);
+  } finally {
+    await prisma.passwordResetToken.deleteMany({ where: { userId: user.id } }).catch(() => {});
+    await prisma.user.delete({ where: { id: user.id } }).catch(() => {});
+  }
+});
+
+test("forgotPassword invalidates older reset tokens for the same user", async () => {
+  const email = `forgot-${Date.now()}@test.com`;
+  const user = await prisma.user.create({
+    data: { email, passwordHash: await argon2.hash("password12345") },
+  });
+  const service = authService();
+
+  try {
+    await prisma.passwordResetToken.create({
+      data: {
+        userId: user.id,
+        tokenHash: `old-reset-${Date.now()}`,
+        expiresAt: new Date(Date.now() + 60_000),
+      },
+    });
+
+    await service.forgotPassword(email);
+
+    const resetTokens = await prisma.passwordResetToken.findMany({
+      where: { userId: user.id },
+    });
+
+    assert.equal(resetTokens.length, 1);
+  } finally {
+    await prisma.passwordResetToken.deleteMany({ where: { userId: user.id } }).catch(() => {});
+    await prisma.user.delete({ where: { id: user.id } }).catch(() => {});
+  }
+});

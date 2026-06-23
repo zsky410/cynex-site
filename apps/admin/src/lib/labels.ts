@@ -1,0 +1,28 @@
+export const labels = {
+  dashboard: "Tổng quan",
+  products: "Sản phẩm",
+  variants: "Biến thể",
+  orders: "Đơn hàng",
+  users: "Người dùng",
+  warranty: "Bảo hành",
+  sources: "Nguồn cung",
+  sourceOrders: "Đơn nhập",
+  inventoryAccounts: "Kho tài khoản",
+  inventoryKeys: "Kho key",
+  emailLogs: "Nhật ký email",
+  auditLogs: "Nhật ký audit",
+  create: "Tạo mới",
+  edit: "Chỉnh sửa",
+  save: "Lưu thay đổi",
+  cancel: "Hủy",
+  filters: "Bộ lọc",
+  search: "Tìm kiếm",
+  reset: "Đặt lại",
+  apply: "Áp dụng",
+  loading: "Đang tải dữ liệu",
+  empty: "Không có dữ liệu",
+  actions: "Thao tác",
+  status: "Trạng thái",
+} as const;
+
+export type LabelKey = keyof typeof labels;

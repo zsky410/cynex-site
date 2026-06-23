@@ -25,7 +25,7 @@ export class TokensService {
       },
     );
     const refreshToken = await this.jwt.signAsync(
-      { sub, type },
+      { sub, type, ...extra },
       {
         secret: this.config.getOrThrow("JWT_REFRESH_SECRET"),
         expiresIn: Number(this.config.get("JWT_REFRESH_TTL") ?? 1209600),
@@ -40,7 +40,7 @@ export class TokensService {
     });
   }
 
-  async verifyRefresh(token: string): Promise<{ sub: string; type: Principal }> {
+  async verifyRefresh(token: string): Promise<{ sub: string; type: Principal; [k: string]: unknown }> {
     return this.jwt.verifyAsync(token, {
       secret: this.config.getOrThrow("JWT_REFRESH_SECRET"),
     });
