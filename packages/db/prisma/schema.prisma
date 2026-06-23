@@ -41,6 +41,7 @@ enum FulfillmentStatus {
 
 enum PaymentProvider {
   payos
+  sepay
   wallet
   manual
 }
