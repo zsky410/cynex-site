@@ -22,15 +22,18 @@ function genSepayPaymentCode(): string {
 @Injectable()
 export class PaymentService {
   private readonly logger = new Logger(PaymentService.name);
+  private readonly sepay: SepayService;
 
   constructor(
     private readonly prisma: PrismaService,
     private readonly payos: PayosService,
-    private readonly sepay: SepayService,
     private readonly queue: QueueService,
     private readonly config: ConfigService,
     private readonly wallet: WalletService,
-  ) {}
+    sepay?: SepayService,
+  ) {
+    this.sepay = sepay ?? new SepayService(config);
+  }
 
   async createDeposit(userId: string, amount: number) {
     const paymentCode = genSepayPaymentCode();
@@ -127,12 +130,12 @@ export class PaymentService {
       this.logger.warn(`webhook for unknown paymentCode ${paymentCode}`);
       return { handled: false };
     }
-    if (payment.status === "paid") return { handled: true, duplicate: true };
+    if (payment.status !== "pending") return { handled: true, duplicate: true };
 
     let didTransition = false;
     await this.prisma.$transaction(async (tx) => {
       const fresh = await tx.payment.findUnique({ where: { id: payment.id } });
-      if (!fresh || fresh.status === "paid") return;
+      if (!fresh || fresh.status !== "pending") return;
 
       await tx.payment.update({
         where: { id: payment.id },

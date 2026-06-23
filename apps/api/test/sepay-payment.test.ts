@@ -37,10 +37,10 @@ function createPaymentService(prisma: PrismaClient, config: ConfigService) {
   const service = new PaymentService(
     prisma as any,
     payos as any,
-    sepay as any,
     {} as any,
     config,
     wallet,
+    sepay as any,
   );
 
   return { service, sepayCalls };
@@ -293,6 +293,101 @@ test("createDeposit creates a new sepay deposit payment for each attempt", async
     assert.equal(payments[1]?.paymentCode, second.paymentCode);
   } finally {
     await prisma.payment.deleteMany({ where: { userId: user.id, isDeposit: true } });
+    await prisma.user.delete({ where: { id: user.id } });
+    await prisma.$disconnect();
+  }
+});
+
+test("cancelled SePay order attempt does not settle after retry creates a new code", async () => {
+  const prisma = new PrismaClient();
+  const config = new ConfigService({
+    SEPAY_BANK_NAME: "MBBank",
+    SEPAY_BANK_ACCOUNT: "0123456789",
+    SEPAY_ACCOUNT_HOLDER: "CYNEX COMPANY",
+    SEPAY_QR_TEMPLATE: "compact",
+  });
+  const wallet = new WalletService(prisma as any);
+  let emailCalls = 0;
+  const queueStub = {
+    enqueueEmail: async () => {
+      emailCalls += 1;
+    },
+  };
+  const { service } = createPaymentService(prisma, config);
+
+  const guardedService = new PaymentService(
+    prisma as any,
+    {} as any,
+    queueStub as any,
+    config,
+    wallet,
+    {
+      createPaymentPayload: ({ paymentCode, amount }: { paymentCode: string; amount: number }) => ({
+        paymentCode,
+        amount,
+        qrCode: `sepay-qr-${paymentCode}`,
+        bankName: "MBBank",
+        bankAccount: "0123456789",
+        accountHolder: "CYNEX COMPANY",
+        transferContent: paymentCode,
+      }),
+    } as any,
+  );
+
+  const user = await prisma.user.create({
+    data: { email: `sepay-cancel-${Date.now()}@test.com`, passwordHash: "x" },
+  });
+  const variant = await prisma.productVariant.findFirstOrThrow();
+  const order = await prisma.order.create({
+    data: {
+      orderCode: `SEPAY-CANCEL-${Date.now()}`,
+      userId: user.id,
+      totalAmount: 33000,
+      items: {
+        create: {
+          productId: variant.productId,
+          productVariantId: variant.id,
+          quantity: 1,
+          unitPrice: 33000,
+          totalPrice: 33000,
+          fulfillmentType: variant.fulfillmentType,
+          fulfillment: { create: { fulfillmentType: variant.fulfillmentType } },
+        },
+      },
+    },
+  });
+
+  try {
+    const first = await service.createOrderPayment(user.id, order.orderCode);
+    const second = await service.createOrderPayment(user.id, order.orderCode);
+
+    const staleResult = await guardedService.markPaid(first.paymentCode, "txn-stale", { stale: true });
+
+    assert.equal(staleResult.handled, true);
+    assert.equal(staleResult.duplicate, true);
+    assert.notEqual(first.paymentCode, second.paymentCode);
+    assert.equal(emailCalls, 0);
+
+    const payments = await prisma.payment.findMany({
+      where: { orderId: order.id },
+      orderBy: { createdAt: "asc" },
+    });
+    assert.deepEqual(
+      payments.map((payment) => ({ paymentCode: payment.paymentCode, status: payment.status })),
+      [
+        { paymentCode: first.paymentCode, status: "cancelled" },
+        { paymentCode: second.paymentCode, status: "pending" },
+      ],
+    );
+
+    const freshOrder = await prisma.order.findUniqueOrThrow({ where: { id: order.id } });
+    assert.equal(freshOrder.paymentStatus, "pending");
+    assert.equal(freshOrder.fulfillmentStatus, "waiting_payment");
+  } finally {
+    await prisma.payment.deleteMany({ where: { orderId: order.id } });
+    await prisma.orderFulfillment.deleteMany({ where: { orderItem: { orderId: order.id } } });
+    await prisma.orderItem.deleteMany({ where: { orderId: order.id } });
+    await prisma.order.delete({ where: { id: order.id } });
     await prisma.user.delete({ where: { id: user.id } });
     await prisma.$disconnect();
   }
