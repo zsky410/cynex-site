@@ -8,7 +8,7 @@ CREATE TYPE "PaymentStatus" AS ENUM ('pending', 'paid', 'failed', 'cancelled', '
 CREATE TYPE "FulfillmentStatus" AS ENUM ('waiting_payment', 'paid_waiting_admin', 'processing', 'assigned', 'delivered', 'failed', 'cancelled', 'refunded');
 
 -- CreateEnum
-CREATE TYPE "PaymentProvider" AS ENUM ('payos', 'wallet', 'manual');
+CREATE TYPE "PaymentProvider" AS ENUM ('payos', 'sepay', 'wallet', 'manual');
 
 -- CreateEnum
 CREATE TYPE "ProductStatus" AS ENUM ('draft', 'active', 'inactive', 'archived');
