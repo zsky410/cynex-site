@@ -4,10 +4,13 @@ import { useEffect, useMemo, useState } from "react";
 import { useNavigate, useSearchParams } from "react-router-dom";
 import { AsyncState } from "../../components/common/AsyncState";
 import { FilterBar } from "../../components/common/FilterBar";
+import { IntegrityWarningCell } from "../../components/common/IntegrityWarningCell";
 import { PageHeader } from "../../components/common/PageHeader";
 import { ResourceTable } from "../../components/common/ResourceTable";
 import { StandardBulkActions } from "../../components/common/StandardBulkActions";
+import { useBulkDelete } from "../../components/common/useBulkDelete";
 import { useListSelection } from "../../components/common/useListSelection";
+import type { IntegrityWarning } from "../../components/common/IntegrityWarningAlert";
 import { listResource } from "../../lib/admin-api";
 import { getDisplayLabel } from "../../lib/display-labels";
 import { labels } from "../../lib/labels";
@@ -20,6 +23,7 @@ type AuditLogRecord = {
   targetType?: string | null;
   targetId?: string | null;
   createdAt: string;
+  integrityWarnings: IntegrityWarning[];
 };
 
 type AuditFilter = {
@@ -47,6 +51,15 @@ export default function AuditLogListPage() {
   const currentTargetType = searchParams.get("targetType") ?? undefined;
   const currentQuery = searchParams.get("q") ?? undefined;
   const selection = useListSelection<AuditLogRecord>(searchParams.toString());
+  const { deleting, deleteSelected } = useBulkDelete({
+    resource: "audit-logs",
+    selectedRowKeys: selection.selectedRowKeys,
+    onDeleted: (deletedIds) => {
+      setRows((currentRows) => currentRows.filter((row) => !deletedIds.includes(row.id)));
+      setTotal((currentTotal) => Math.max(0, currentTotal - deletedIds.length));
+      selection.clearSelection();
+    },
+  });
 
   useEffect(() => {
     form.setFieldsValue({ action: currentAction, targetType: currentTargetType, q: currentQuery });
@@ -75,6 +88,7 @@ export default function AuditLogListPage() {
 
   const columns = useMemo<ColumnsType<AuditLogRecord>>(
     () => [
+      { title: "", key: "integrityWarnings", width: 44, render: (_, record) => <IntegrityWarningCell integrityWarnings={record.integrityWarnings} /> },
       { title: "Hành động", dataIndex: "action", key: "action", render: (value: string) => getDisplayLabel(value) },
       { title: "Loại actor", dataIndex: "actorType", key: "actorType", render: (value?: string | null) => value || "-" },
       { title: "Actor ID", dataIndex: "actorId", key: "actorId", render: (value?: string | null) => value || "-" },
@@ -137,6 +151,8 @@ export default function AuditLogListPage() {
                 selectedRows={selection.selectedRows}
                 onClear={selection.clearSelection}
                 onView={(row) => navigate(`/shell/audit-logs/${row.id}`)}
+                onDelete={deleteSelected}
+                deleting={deleting}
               />
             ),
           }}

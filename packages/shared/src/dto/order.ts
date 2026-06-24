@@ -12,7 +12,7 @@ export type CreateOrderDto = z.infer<typeof CreateOrderSchema>;
 export const PayWithWalletSchema = z.object({}).strict();
 
 export const PaySchema = z.object({
-  method: z.nativeEnum(PaymentMethod).default(PaymentMethod.payos),
+  method: z.nativeEnum(PaymentMethod).default(PaymentMethod.sepay),
 });
 export type PayDto = z.infer<typeof PaySchema>;
 

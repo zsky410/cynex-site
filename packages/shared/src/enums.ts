@@ -61,6 +61,7 @@ export function leastAdvancedFulfillment(
 
 export const PaymentProvider = {
   payos: "payos",
+  sepay: "sepay",
   wallet: "wallet",
   manual: "manual",
 } as const;
@@ -68,6 +69,7 @@ export type PaymentProvider = (typeof PaymentProvider)[keyof typeof PaymentProvi
 
 export const PaymentMethod = {
   payos: "payos",
+  sepay: "sepay",
   wallet: "wallet",
 } as const;
 export type PaymentMethod = (typeof PaymentMethod)[keyof typeof PaymentMethod];

@@ -17,11 +17,11 @@ export const envSchema = z.object({
 
   ENCRYPTION_KEY: z.string().min(1),
 
-  PAYOS_CLIENT_ID: z.string().default(""),
-  PAYOS_API_KEY: z.string().default(""),
-  PAYOS_CHECKSUM_KEY: z.string().default(""),
-  PAYOS_RETURN_URL: z.string().default("http://localhost:3000/checkout/return"),
-  PAYOS_CANCEL_URL: z.string().default("http://localhost:3000/checkout/cancel"),
+  SEPAY_BANK_NAME: z.string().default(""),
+  SEPAY_BANK_ACCOUNT: z.string().default(""),
+  SEPAY_ACCOUNT_HOLDER: z.string().default(""),
+  SEPAY_QR_TEMPLATE: z.string().default("compact"),
+  SEPAY_WEBHOOK_SECRET: z.string().default(""),
 
   RESEND_API_KEY: z.string().default(""),
   EMAIL_FROM: z.string().default("Cynex <noreply@cynex.local>"),

@@ -11,7 +11,8 @@
 3. Set environment variables (copy from `.env.example`, fill real secrets):
    - `POSTGRES_PASSWORD`, `DATABASE_URL`, `REDIS_URL`
    - `JWT_ACCESS_SECRET`, `JWT_REFRESH_SECRET`, `ENCRYPTION_KEY`
-   - `PAYOS_*`, `RESEND_API_KEY`, `EMAIL_FROM`, `R2_*`
+   - `SEPAY_BANK_NAME`, `SEPAY_BANK_ACCOUNT`, `SEPAY_ACCOUNT_HOLDER`, `SEPAY_QR_TEMPLATE`, `SEPAY_WEBHOOK_SECRET`
+   - `RESEND_API_KEY`, `EMAIL_FROM`, `R2_*`
    - `WEB_BASE_URL`, `ADMIN_BASE_URL`, `NEXT_PUBLIC_API_BASE_URL`
 4. After first boot, run migrations: `docker compose exec api npx prisma migrate deploy`
    (or run `pnpm -F @cynex/db migrate:deploy` in a one-off job).

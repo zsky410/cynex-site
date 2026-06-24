@@ -1,6 +1,7 @@
 import {
   BadRequestException,
   Body,
+  ConflictException,
   Controller,
   Delete,
   Get,
@@ -12,6 +13,8 @@ import {
 } from "@nestjs/common";
 import { AdminAuthGuard } from "../../auth/guards";
 import { PrismaService } from "../../prisma/prisma.service";
+import { AdminIntegrityService } from "../integrity/admin-integrity.service";
+import { type BlockingDependency } from "../integrity/integrity.types";
 import { parseListQuery } from "../common/list-query";
 import { encrypt, encryptNullable } from "@cynex/shared";
 
@@ -39,6 +42,13 @@ function mask<T extends Record<string, any>>(a: T) {
   };
 }
 
+function withIntegrityWarnings<T extends Record<string, any>>(integrity: AdminIntegrityService, row: T) {
+  return {
+    ...mask(row),
+    integrityWarnings: integrity.getInventoryAccountWarnings(row),
+  };
+}
+
 function mapBody(b: Record<string, any>, isCreate: boolean): Record<string, any> {
   const o: Record<string, any> = {};
   for (const k of PLAIN_FIELDS) if (b[k] !== undefined) o[k] = b[k];
@@ -55,10 +65,25 @@ function mapBody(b: Record<string, any>, isCreate: boolean): Record<string, any>
   return o;
 }
 
+function throwDeleteBlocked(
+  id: string,
+  blockingDependencies: BlockingDependency[],
+): never {
+  throw new ConflictException({
+    message: "Cannot delete inventory account while dependent records exist.",
+    resource: "inventory_accounts",
+    id,
+    blockingDependencies,
+  });
+}
+
 @UseGuards(AdminAuthGuard)
 @Controller("admin/inventory-accounts")
 export class AdminAccountsController {
-  constructor(private readonly prisma: PrismaService) {}
+  constructor(
+    private readonly prisma: PrismaService,
+    private readonly integrity: AdminIntegrityService,
+  ) {}
 
   @Get()
   async list(@Query() q: Record<string, any>) {
@@ -82,13 +107,19 @@ export class AdminAccountsController {
       }),
       this.prisma.inventoryAccount.count({ where }),
     ]);
-    return { data: rows.map(mask), total };
+    return { data: rows.map((row) => withIntegrityWarnings(this.integrity, row)), total };
   }
 
   @Get(":id")
   async getOne(@Param("id") id: string) {
-    const a = await this.prisma.inventoryAccount.findUniqueOrThrow({ where: { id } });
-    return { data: mask(a) };
+    const a = await this.prisma.inventoryAccount.findUniqueOrThrow({
+      where: { id },
+      include: {
+        variant: { select: { id: true, name: true } },
+        source: { select: { id: true, name: true } },
+      },
+    });
+    return { data: withIntegrityWarnings(this.integrity, a) };
   }
 
   @Post()
@@ -109,7 +140,12 @@ export class AdminAccountsController {
 
   @Delete(":id")
   async remove(@Param("id") id: string) {
-    const a = await this.prisma.inventoryAccount.update({ where: { id }, data: { status: "disabled" } });
+    const preflight = await this.integrity.getInventoryAccountDeletePreflight(id);
+    if (!preflight.canDelete) {
+      throwDeleteBlocked(id, preflight.blockingDependencies);
+    }
+
+    const a = await this.prisma.inventoryAccount.delete({ where: { id } });
     return { data: mask(a) };
   }
 }

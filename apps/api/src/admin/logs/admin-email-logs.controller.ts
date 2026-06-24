@@ -1,12 +1,20 @@
-import { Controller, Get, Param, Query, UseGuards } from "@nestjs/common";
+import { Controller, Delete, Get, Param, Query, UseGuards } from "@nestjs/common";
 import { AdminAuthGuard } from "../../auth/guards";
 import { PrismaService } from "../../prisma/prisma.service";
+import { AdminIntegrityService } from "../integrity/admin-integrity.service";
 import { parseListQuery } from "../common/list-query";
 
 @UseGuards(AdminAuthGuard)
 @Controller("admin/email-logs")
 export class AdminEmailLogsController {
-  constructor(private readonly prisma: PrismaService) {}
+  private readonly integrity: AdminIntegrityService;
+
+  constructor(
+    private readonly prisma: PrismaService,
+    integrity?: AdminIntegrityService,
+  ) {
+    this.integrity = integrity ?? new AdminIntegrityService(prisma);
+  }
 
   @Get()
   async list(@Query() q: Record<string, any>) {
@@ -25,7 +33,7 @@ export class AdminEmailLogsController {
       ];
     }
 
-    const [data, total] = await Promise.all([
+    const [rows, total] = await Promise.all([
       this.prisma.emailLog.findMany({
         where,
         skip,
@@ -38,19 +46,32 @@ export class AdminEmailLogsController {
       }),
       this.prisma.emailLog.count({ where }),
     ]);
+    const data = rows.map((row) => ({
+      ...row,
+      integrityWarnings: this.integrity.getEmailLogWarnings(row),
+    }));
     return { data, total };
   }
 
   @Get(":id")
   async getOne(@Param("id") id: string) {
+    const row = await this.prisma.emailLog.findUniqueOrThrow({
+      where: { id },
+      include: {
+        user: { select: { id: true, email: true, name: true } },
+        order: { select: { id: true, orderCode: true } },
+      },
+    });
     return {
-      data: await this.prisma.emailLog.findUniqueOrThrow({
-        where: { id },
-        include: {
-          user: { select: { id: true, email: true, name: true } },
-          order: { select: { id: true, orderCode: true } },
-        },
-      }),
+      data: {
+        ...row,
+        integrityWarnings: this.integrity.getEmailLogWarnings(row),
+      },
     };
+  }
+
+  @Delete(":id")
+  async remove(@Param("id") id: string) {
+    return { data: await this.prisma.emailLog.delete({ where: { id } }) };
   }
 }

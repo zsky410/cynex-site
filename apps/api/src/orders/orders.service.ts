@@ -166,7 +166,7 @@ export class OrdersService {
           },
         },
         payments: {
-          select: { id: true, status: true, provider: true, amount: true, checkoutUrl: true },
+          select: { id: true, status: true, provider: true, amount: true },
         },
       },
     });

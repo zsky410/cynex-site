@@ -23,7 +23,7 @@ export default function GuidePage() {
       <section>
         <h2 className="text-lg font-semibold text-slate-900">3. Thanh toán</h2>
         <p>
-          Chọn payOS (chuyển khoản/QR) hoặc Ví Cynex. Sau khi thanh toán thành công, đơn chuyển sang trạng thái
+          Chọn SePay (chuyển khoản/QR) hoặc Ví Cynex. Sau khi thanh toán thành công, đơn chuyển sang trạng thái
           &quot;Đã thanh toán — chờ xử lý&quot;. Bạn nhận email xác nhận.
         </p>
       </section>

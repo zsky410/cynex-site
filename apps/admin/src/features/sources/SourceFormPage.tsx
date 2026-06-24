@@ -2,6 +2,7 @@ import { Button, Card, Form, Input, InputNumber, Select, Space } from "antd";
 import { useEffect, useState } from "react";
 import { useNavigate, useParams } from "react-router-dom";
 import { AsyncState } from "../../components/common/AsyncState";
+import { IntegrityWarningAlert, type IntegrityWarning } from "../../components/common/IntegrityWarningAlert";
 import { PageHeader } from "../../components/common/PageHeader";
 import { createResource, getResource, updateResource } from "../../lib/admin-api";
 import { getDisplayLabel } from "../../lib/display-labels";
@@ -23,7 +24,9 @@ type SourcePayload = {
   notes?: string;
   rating?: number | null;
   status: string;
+  integrityWarnings?: IntegrityWarning[];
 };
+type SourceRecord = SourcePayload;
 
 const channelOptions = ["internal", "telegram", "discord", "website", "facebook", "email", "phone", "other"].map((value) => ({
   value,
@@ -41,6 +44,7 @@ export default function SourceFormPage() {
   const [loading, setLoading] = useState(Boolean(sourceId));
   const [saving, setSaving] = useState(false);
   const [error, setError] = useState<string | null>(null);
+  const [record, setRecord] = useState<SourceRecord | null>(null);
 
   useEffect(() => {
     if (!sourceId) {
@@ -48,7 +52,10 @@ export default function SourceFormPage() {
       return;
     }
     getResource<SourcePayload>("supply-sources", sourceId)
-      .then((response) => form.setFieldsValue(response.data))
+      .then((response) => {
+        setRecord(response.data);
+        form.setFieldsValue(response.data);
+      })
       .catch((err: Error) => setError(err.message))
       .finally(() => setLoading(false));
   }, [form, sourceId]);
@@ -76,6 +83,7 @@ export default function SourceFormPage() {
       <PageHeader title={`${sourceId ? labels.edit : labels.create} ${labels.sources}`} subtitle="Giữ nguyên toàn bộ field nguồn cung từ giao diện legacy." />
       <AsyncState loading={loading} error={error}>
         <Card>
+          <IntegrityWarningAlert integrityWarnings={record?.integrityWarnings} />
           <Form<SourcePayload> form={form} layout="vertical" onFinish={submit}>
             <Form.Item label="Tên nguồn" name="name" rules={[{ required: true, message: "Nhập tên nguồn" }]}><Input /></Form.Item>
             <Form.Item label="Slug" name="slug" rules={[{ required: true, message: "Nhập slug" }]}><Input /></Form.Item>

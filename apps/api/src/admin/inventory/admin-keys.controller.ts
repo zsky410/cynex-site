@@ -1,6 +1,7 @@
 import {
   BadRequestException,
   Body,
+  ConflictException,
   Controller,
   Delete,
   Get,
@@ -12,6 +13,8 @@ import {
 } from "@nestjs/common";
 import { AdminAuthGuard } from "../../auth/guards";
 import { PrismaService } from "../../prisma/prisma.service";
+import { AdminIntegrityService } from "../integrity/admin-integrity.service";
+import { type BlockingDependency } from "../integrity/integrity.types";
 import { parseListQuery } from "../common/list-query";
 import { encrypt } from "@cynex/shared";
 
@@ -30,6 +33,13 @@ function mask<T extends Record<string, any>>(k: T) {
   return { ...rest, hasKey: !!keyEncrypted };
 }
 
+function withIntegrityWarnings<T extends Record<string, any>>(integrity: AdminIntegrityService, row: T) {
+  return {
+    ...mask(row),
+    integrityWarnings: integrity.getInventoryKeyWarnings(row),
+  };
+}
+
 function mapBody(b: Record<string, any>, isCreate: boolean): Record<string, any> {
   const o: Record<string, any> = {};
   for (const f of PLAIN_FIELDS) if (b[f] !== undefined) o[f] = b[f];
@@ -41,10 +51,25 @@ function mapBody(b: Record<string, any>, isCreate: boolean): Record<string, any>
   return o;
 }
 
+function throwDeleteBlocked(
+  id: string,
+  blockingDependencies: BlockingDependency[],
+): never {
+  throw new ConflictException({
+    message: "Cannot delete inventory key while dependent records exist.",
+    resource: "inventory_keys",
+    id,
+    blockingDependencies,
+  });
+}
+
 @UseGuards(AdminAuthGuard)
 @Controller("admin/inventory-keys")
 export class AdminKeysController {
-  constructor(private readonly prisma: PrismaService) {}
+  constructor(
+    private readonly prisma: PrismaService,
+    private readonly integrity: AdminIntegrityService,
+  ) {}
 
   @Get()
   async list(@Query() q: Record<string, any>) {
@@ -64,12 +89,23 @@ export class AdminKeysController {
       }),
       this.prisma.inventoryKey.count({ where }),
     ]);
-    return { data: rows.map(mask), total };
+    return { data: rows.map((row) => withIntegrityWarnings(this.integrity, row)), total };
   }
 
   @Get(":id")
   async getOne(@Param("id") id: string) {
-    return { data: mask(await this.prisma.inventoryKey.findUniqueOrThrow({ where: { id } })) };
+    return {
+      data: withIntegrityWarnings(
+        this.integrity,
+        await this.prisma.inventoryKey.findUniqueOrThrow({
+          where: { id },
+          include: {
+            variant: { select: { id: true, name: true } },
+            source: { select: { id: true, name: true } },
+          },
+        }),
+      ),
+    };
   }
 
   @Post()
@@ -84,6 +120,11 @@ export class AdminKeysController {
 
   @Delete(":id")
   async remove(@Param("id") id: string) {
-    return { data: mask(await this.prisma.inventoryKey.update({ where: { id }, data: { status: "invalid" } })) };
+    const preflight = await this.integrity.getInventoryKeyDeletePreflight(id);
+    if (!preflight.canDelete) {
+      throwDeleteBlocked(id, preflight.blockingDependencies);
+    }
+
+    return { data: mask(await this.prisma.inventoryKey.delete({ where: { id } })) };
   }
 }

@@ -95,7 +95,7 @@ export async function deleteManyResources(resource: string, ids: Array<string | 
 
   return results.reduce<{
     succeededIds: Array<string | number>;
-    failed: Array<{ id: string | number; message: string }>;
+    failed: Array<{ id: string | number; message: string; status?: number; body?: unknown }>;
   }>(
     (accumulator, result, index) => {
       const id = ids[index];
@@ -107,6 +107,8 @@ export async function deleteManyResources(resource: string, ids: Array<string | 
       accumulator.failed.push({
         id,
         message: result.reason instanceof Error ? result.reason.message : "Không thể xóa bản ghi",
+        status: result.reason instanceof HttpError ? result.reason.status : undefined,
+        body: result.reason instanceof HttpError ? result.reason.body : undefined,
       });
       return accumulator;
     },

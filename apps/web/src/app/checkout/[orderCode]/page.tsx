@@ -14,6 +14,10 @@ import {
   UserRound,
   WalletCards,
 } from "lucide-react";
+import {
+  BankTransferInstructions,
+  type BankTransferPayment,
+} from "@/components/payments/BankTransferInstructions";
 import { apiFetch, ApiError, getToken } from "@/lib/api";
 import { cn, formatVnd } from "@/lib/utils";
 
@@ -37,7 +41,7 @@ interface MeProfile {
   walletBalance: number;
 }
 
-type PaymentMethod = "payos" | "wallet";
+type PaymentMethod = "sepay" | "wallet";
 
 function toRecord(value: unknown): Record<string, unknown> {
   if (!value || typeof value !== "object" || Array.isArray(value)) return {};
@@ -70,8 +74,9 @@ export default function CheckoutPage({ params }: { params: Promise<{ orderCode: 
   const [order, setOrder] = useState<Order | null>(null);
   const [profile, setProfile] = useState<MeProfile | null>(null);
   const [error, setError] = useState<string | null>(null);
-  const [selectedMethod, setSelectedMethod] = useState<PaymentMethod>("payos");
+  const [selectedMethod, setSelectedMethod] = useState<PaymentMethod>("sepay");
   const [busyMethod, setBusyMethod] = useState<PaymentMethod | null>(null);
+  const [transferPayment, setTransferPayment] = useState<BankTransferPayment | null>(null);
 
   useEffect(() => {
     if (!getToken()) {
@@ -97,14 +102,15 @@ export default function CheckoutPage({ params }: { params: Promise<{ orderCode: 
     }
   }, [order?.totalAmount, profile]);
 
-  async function payPayos() {
-    setBusyMethod("payos");
+  async function paySepay() {
+    setBusyMethod("sepay");
     setError(null);
     try {
-      const res = await apiFetch<{ checkoutUrl: string }>(`/orders/${orderCode}/pay`, { method: "POST" });
-      window.location.href = res.checkoutUrl;
+      const res = await apiFetch<BankTransferPayment>(`/orders/${orderCode}/pay`, { method: "POST" });
+      setTransferPayment(res);
     } catch (e) {
       setError(e instanceof ApiError ? e.message : "Không tạo được thanh toán");
+    } finally {
       setBusyMethod(null);
     }
   }
@@ -117,6 +123,7 @@ export default function CheckoutPage({ params }: { params: Promise<{ orderCode: 
       router.push(`/orders/${orderCode}`);
     } catch (e) {
       setError(e instanceof ApiError ? e.message : "Thanh toán ví thất bại");
+    } finally {
       setBusyMethod(null);
     }
   }
@@ -126,7 +133,7 @@ export default function CheckoutPage({ params }: { params: Promise<{ orderCode: 
       await payWallet();
       return;
     }
-    await payPayos();
+    await paySepay();
   }
 
   if (error && !order) return <p className="text-red-600">{error}</p>;
@@ -195,11 +202,15 @@ export default function CheckoutPage({ params }: { params: Promise<{ orderCode: 
   const walletSufficient = walletBalance >= order.totalAmount;
   const isBusy = busyMethod !== null;
   const actionLabel =
-    busyMethod === "payos"
-      ? "Đang chuyển sang payOS..."
+    busyMethod === "sepay"
+      ? "Đang tạo mã QR..."
       : busyMethod === "wallet"
         ? "Đang thanh toán bằng ví..."
-        : "Xác nhận & Thanh toán";
+        : selectedMethod === "wallet"
+          ? "Xác nhận & Thanh toán"
+          : transferPayment
+            ? "Tạo mã QR mới"
+            : "Xác nhận & Tạo QR";
 
   return (
     <div className="min-h-screen bg-[#f5f7fc] text-slate-950">
@@ -300,11 +311,11 @@ export default function CheckoutPage({ params }: { params: Promise<{ orderCode: 
               <div className="mt-8 space-y-4">
                 <button
                   type="button"
-                  onClick={() => setSelectedMethod("payos")}
+                  onClick={() => setSelectedMethod("sepay")}
                   disabled={isBusy}
                   className={cn(
                     "flex w-full items-center justify-between rounded-[20px] border px-5 py-5 text-left transition",
-                    selectedMethod === "payos"
+                    selectedMethod === "sepay"
                       ? "border-sky-300 bg-sky-50 shadow-[0_0_0_1px_rgba(14,165,233,0.12)]"
                       : "border-slate-200 bg-white hover:border-sky-200",
                     isBusy && "cursor-not-allowed opacity-80",
@@ -315,13 +326,15 @@ export default function CheckoutPage({ params }: { params: Promise<{ orderCode: 
                       <span
                         className={cn(
                           "h-3.5 w-3.5 rounded-full transition",
-                          selectedMethod === "payos" ? "bg-sky-600" : "bg-transparent",
+                          selectedMethod === "sepay" ? "bg-sky-600" : "bg-transparent",
                         )}
                       />
                     </span>
                     <span>
-                      <span className="block text-lg font-semibold text-slate-950">Chuyển khoản VietQR (payOS)</span>
-                      <span className="mt-1 block text-sm text-slate-500">Tự động xác nhận trong 5-10 giây.</span>
+                      <span className="block text-lg font-semibold text-slate-950">Chuyển khoản SePay</span>
+                      <span className="mt-1 block text-sm text-slate-500">
+                        Quét QR hoặc chuyển khoản đúng nội dung để hệ thống tự xác nhận.
+                      </span>
                     </span>
                   </span>
                   <Smartphone className="h-6 w-6 text-sky-700" />
@@ -370,6 +383,12 @@ export default function CheckoutPage({ params }: { params: Promise<{ orderCode: 
                   <WalletCards className="h-6 w-6 text-sky-700" />
                 </button>
               </div>
+
+              {transferPayment ? (
+                <div className="mt-6">
+                  <BankTransferInstructions payment={transferPayment} />
+                </div>
+              ) : null}
             </div>
           </section>
 

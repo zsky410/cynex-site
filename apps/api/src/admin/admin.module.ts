@@ -21,6 +21,7 @@ import { WarrantyReplacementService } from "../warranty/replace";
 import { AdminEmailLogsController } from "./logs/admin-email-logs.controller";
 import { AdminAuditLogsController } from "./logs/admin-audit-logs.controller";
 import { AdminDashboardController } from "./dashboard/dashboard.controller";
+import { AdminIntegrityService } from "./integrity/admin-integrity.service";
 
 @Module({
   controllers: [
@@ -48,6 +49,7 @@ import { AdminDashboardController } from "./dashboard/dashboard.controller";
     AdminRevealService,
     WarrantyReplacementService,
     AuditService,
+    AdminIntegrityService,
   ],
 })
 export class AdminModule {}

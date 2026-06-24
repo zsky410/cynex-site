@@ -2,6 +2,7 @@ import { Button, Card, Descriptions } from "antd";
 import { useEffect, useState } from "react";
 import { useNavigate, useParams } from "react-router-dom";
 import { AsyncState } from "../../components/common/AsyncState";
+import { IntegrityWarningAlert, type IntegrityWarning } from "../../components/common/IntegrityWarningAlert";
 import { PageHeader } from "../../components/common/PageHeader";
 import { StatusTag } from "../../components/common/StatusTag";
 import { getResource } from "../../lib/admin-api";
@@ -21,6 +22,7 @@ type EmailLogRecord = {
   createdAt: string;
   user?: { email?: string };
   order?: { orderCode?: string };
+  integrityWarnings?: IntegrityWarning[];
 };
 
 function formatDate(value?: string | null) {
@@ -49,6 +51,7 @@ export default function EmailLogDetailPage() {
       <AsyncState loading={loading} error={error}>
         {record ? (
           <Card>
+            <IntegrityWarningAlert integrityWarnings={record.integrityWarnings} />
             <Descriptions bordered column={1}>
               <Descriptions.Item label="Loại email">{record.type}</Descriptions.Item>
               <Descriptions.Item label={labels.status}><StatusTag status={record.status} /></Descriptions.Item>

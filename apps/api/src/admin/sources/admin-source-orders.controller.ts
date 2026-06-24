@@ -1,6 +1,8 @@
-import { Body, Controller, Delete, Get, Param, Patch, Post, Query, UseGuards } from "@nestjs/common";
+import { Body, ConflictException, Controller, Delete, Get, Param, Patch, Post, Query, UseGuards } from "@nestjs/common";
 import { AdminAuthGuard } from "../../auth/guards";
 import { PrismaService } from "../../prisma/prisma.service";
+import { AdminIntegrityService } from "../integrity/admin-integrity.service";
+import { type BlockingDependency } from "../integrity/integrity.types";
 import { parseListQuery } from "../common/list-query";
 import { encryptNullable } from "@cynex/shared";
 
@@ -25,10 +27,45 @@ function mapBody(b: Record<string, any>): Record<string, any> {
   return o;
 }
 
+function serializeSourceOrder<T extends { sourcePayloadEncrypted?: string | null }>(row: T) {
+  const { sourcePayloadEncrypted, ...rest } = row;
+  return {
+    ...rest,
+    hasSourcePayload: !!sourcePayloadEncrypted,
+  };
+}
+
+function withIntegrityWarnings<
+  T extends { sourcePayloadEncrypted?: string | null; sourceId?: string | null; source?: { id: string } | null },
+>(
+  integrity: AdminIntegrityService,
+  row: T,
+) {
+  return {
+    ...serializeSourceOrder(row),
+    integrityWarnings: integrity.getSourceOrderWarnings(row),
+  };
+}
+
+function throwDeleteBlocked(
+  id: string,
+  blockingDependencies: BlockingDependency[],
+): never {
+  throw new ConflictException({
+    message: "Cannot delete source order while dependent records exist.",
+    resource: "source_orders",
+    id,
+    blockingDependencies,
+  });
+}
+
 @UseGuards(AdminAuthGuard)
 @Controller("admin/source-orders")
 export class AdminSourceOrdersController {
-  constructor(private readonly prisma: PrismaService) {}
+  constructor(
+    private readonly prisma: PrismaService,
+    private readonly integrity: AdminIntegrityService,
+  ) {}
 
   @Get()
   async list(@Query() q: Record<string, any>) {
@@ -44,45 +81,48 @@ export class AdminSourceOrdersController {
         skip,
         take,
         orderBy,
-        include: { source: { select: { name: true } } },
+        include: { source: { select: { id: true, name: true } } },
       }),
       this.prisma.sourceOrder.count({ where }),
     ]);
     // Never leak the encrypted payload in list/getOne.
-    const data = rows.map(({ sourcePayloadEncrypted, ...r }) => ({
-      ...r,
-      hasSourcePayload: !!sourcePayloadEncrypted,
-    }));
+    const data = rows.map((row) => withIntegrityWarnings(this.integrity, row));
     return { data, total };
   }
 
   @Get(":id")
   async getOne(@Param("id") id: string) {
-    const { sourcePayloadEncrypted, ...r } = await this.prisma.sourceOrder.findUniqueOrThrow({
+    const row = await this.prisma.sourceOrder.findUniqueOrThrow({
       where: { id },
+      include: { source: { select: { id: true, name: true } } },
     });
-    return { data: { ...r, hasSourcePayload: !!sourcePayloadEncrypted } };
+    return { data: withIntegrityWarnings(this.integrity, row) };
   }
 
   @Post()
   async create(@Body() b: Record<string, any>) {
-    const { sourcePayloadEncrypted, ...r } = await this.prisma.sourceOrder.create({
+    const row = await this.prisma.sourceOrder.create({
       data: mapBody(b) as any,
     });
-    return { data: r };
+    return { data: serializeSourceOrder(row) };
   }
 
   @Patch(":id")
   async update(@Param("id") id: string, @Body() b: Record<string, any>) {
-    const { sourcePayloadEncrypted, ...r } = await this.prisma.sourceOrder.update({
+    const row = await this.prisma.sourceOrder.update({
       where: { id },
       data: mapBody(b),
     });
-    return { data: r };
+    return { data: serializeSourceOrder(row) };
   }
 
   @Delete(":id")
   async remove(@Param("id") id: string) {
-    return { data: await this.prisma.sourceOrder.update({ where: { id }, data: { status: "cancelled" } }) };
+    const preflight = await this.integrity.getSourceOrderDeletePreflight(id);
+    if (!preflight.canDelete) {
+      throwDeleteBlocked(id, preflight.blockingDependencies);
+    }
+
+    return { data: await this.prisma.sourceOrder.delete({ where: { id } }) };
   }
 }

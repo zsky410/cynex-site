@@ -1,9 +1,11 @@
-import { Body, Controller, Delete, Get, Param, Patch, Post, Query, UseGuards } from "@nestjs/common";
+import { Body, ConflictException, Controller, Delete, Get, Param, Patch, Post, Query, UseGuards } from "@nestjs/common";
 import { AuditAction } from "@cynex/shared";
 import { AdminAuthGuard } from "../../auth/guards";
 import { CurrentAdmin, AuthAdmin } from "../../common/current-user.decorator";
 import { AuditService } from "../../audit/audit.service";
 import { PrismaService } from "../../prisma/prisma.service";
+import { AdminIntegrityService } from "../integrity/admin-integrity.service";
+import { type BlockingDependency } from "../integrity/integrity.types";
 import { parseListQuery } from "../common/list-query";
 
 const FIELDS = [
@@ -30,12 +32,27 @@ function pick(b: Record<string, any>): Record<string, any> {
   return o;
 }
 
+function throwDeleteBlocked(
+  resource: string,
+  id: string,
+  message: string,
+  blockingDependencies: BlockingDependency[],
+): never {
+  throw new ConflictException({
+    message,
+    resource,
+    id,
+    blockingDependencies,
+  });
+}
+
 @UseGuards(AdminAuthGuard)
 @Controller("admin/supply-sources")
 export class AdminSourcesController {
   constructor(
     private readonly prisma: PrismaService,
     private readonly audit: AuditService,
+    private readonly integrity: AdminIntegrityService,
   ) {}
 
   @Get()
@@ -45,16 +62,26 @@ export class AdminSourcesController {
     if (ids) where.id = { in: ids };
     if (filter.status) where.status = filter.status;
     if (filter.q) where.name = { contains: String(filter.q), mode: "insensitive" };
-    const [data, total] = await Promise.all([
+    const [rows, total] = await Promise.all([
       this.prisma.supplySource.findMany({ where, skip, take, orderBy }),
       this.prisma.supplySource.count({ where }),
     ]);
+    const data = rows.map((row) => ({
+      ...row,
+      integrityWarnings: this.integrity.getSupplySourceWarnings(),
+    }));
     return { data, total };
   }
 
   @Get(":id")
   async getOne(@Param("id") id: string) {
-    return { data: await this.prisma.supplySource.findUniqueOrThrow({ where: { id } }) };
+    const row = await this.prisma.supplySource.findUniqueOrThrow({ where: { id } });
+    return {
+      data: {
+        ...row,
+        integrityWarnings: this.integrity.getSupplySourceWarnings(),
+      },
+    };
   }
 
   @Post()
@@ -73,6 +100,16 @@ export class AdminSourcesController {
 
   @Delete(":id")
   async remove(@Param("id") id: string) {
-    return { data: await this.prisma.supplySource.update({ where: { id }, data: { status: "archived" } }) };
+    const preflight = await this.integrity.getSupplySourceDeletePreflight(id);
+    if (!preflight.canDelete) {
+      throwDeleteBlocked(
+        "supply_sources",
+        id,
+        "Cannot delete supply source while dependent records exist.",
+        preflight.blockingDependencies,
+      );
+    }
+
+    return { data: await this.prisma.supplySource.delete({ where: { id } }) };
   }
 }

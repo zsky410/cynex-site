@@ -4,14 +4,14 @@
 > `.cursor/plans/cynex_mvp_implementation_5a2af0fe.plan.md` (do NOT edit it).
 > This file tracks what is DONE vs PENDING and how to continue.
 
-Last updated: after Phase 5 replacement flow, alert jobs, Sentry/bootstrap wrappers, backup docs, and full warranty UI were completed and verified.
+Last updated: after converting targeted admin resources to hard delete with dependency preflight and integrity warnings in backend/admin UI, with verification rerun.
 
 ## Status summary
 
 | Phase | Scope | Status |
 |-------|-------|--------|
 | Phase 0 | Monorepo foundation (pnpm+turbo, packages, docker, scaffolds, Dockerfiles, README) | ✅ DONE & verified |
-| Phase 1 | Core commerce (auth, catalog, orders, payOS pay + idempotent webhook, email job, web + admin) | ✅ DONE & verified |
+| Phase 1 | Core commerce (auth, catalog, orders, SePay pay + idempotent webhook, email job, web + admin) | ✅ DONE & verified |
 | Phase 2 | Wallet (read, deposit, pay-with-wallet, admin adjustment, web + admin UI) | ✅ DONE & verified |
 | Phase 3 | Source & inventory (sources, source-orders, inventory accounts/keys with AES-256-GCM, admin CRUD + UI) | ✅ DONE & verified |
 | Phase 4 | Manual fulfillment (assign account/key, delivery email, user reveal secret) | ✅ DONE & verified |
@@ -52,18 +52,31 @@ pnpm -F @cynex/worker exec tsx src/main.ts
 # API health: curl localhost:3001/health  -> {"status":"ok","db":"ok"}
 ```
 
-### Checks (all currently green)
+### Checks
 
 ```bash
-pnpm typecheck                 # 9/9 packages
-pnpm -F @cynex/shared test     # 4/4 (AES-256-GCM crypto)
-pnpm -F @cynex/api test        # 25/25 (payment, fulfillment, warranty, alerts, file upload, audit/reveal, refund, log viewers)
-pnpm build                     # full monorepo build
+pnpm -F @cynex/api typecheck   # PASS
+pnpm -F @cynex/admin test      # PASS (24/24)
+pnpm -F @cynex/admin typecheck # PASS
+pnpm build                     # PASS
+pnpm typecheck                 # PASS
+```
+
+`pnpm -F @cynex/api test` is not fully green in the current local `.env`, but the remaining failures are environment-sensitive and unrelated to the admin integrity slice:
+
+- `apps/api/test/files.test.ts` expects local file storage, but local `.env` currently enables R2 so the service returns `storageDriver = "r2"`.
+- `apps/api/test/refund-email-job.test.ts` fails when `RESEND_API_KEY` is set to a real key whose sender domain is not verified.
+- `apps/api/test/sepay-payment.test.ts` includes a case that expects missing SePay config; it passes when `SEPAY_*` vars are unset/overridden, but not with the current fully populated local SePay config.
+
+Verified by rerunning the failing subset with env overrides:
+
+```bash
+pnpm --dir apps/api exec env R2_BUCKET= R2_ENDPOINT= R2_ACCESS_KEY_ID= R2_SECRET_ACCESS_KEY= R2_ACCOUNT_ID= RESEND_API_KEY= SEPAY_BANK_NAME= SEPAY_BANK_ACCOUNT= SEPAY_ACCOUNT_HOLDER= node --env-file=/home/obi/Projects/cynexsite/.env --test --test-concurrency=1 --import tsx test/files.test.ts test/refund-email-job.test.ts test/sepay-payment.test.ts
 ```
 
 ### Seed credentials
 
-- **Admin:** `admin@cynex.local` / `admin12345` (super_admin)
+- **Admin:** `contact.cynex@gmail.com` / `Giabao@#1504@@` (super_admin)
 - Sample product `spotify-premium` with 2 variants (SHARED_ACCOUNT, CUSTOMER_ACCOUNT_UPGRADE)
 
 ---
@@ -78,11 +91,11 @@ pnpm build                     # full monorepo build
    (`.ts`, not React `.tsx`). Simpler, no extra deps.
 3. **Dev email fallback:** if `RESEND_API_KEY` is empty, `apps/worker/src/email/resend.ts`
    logs to console and returns a fake id so `email_logs` flow is testable without a provider.
-4. **payOS / Resend / R2 keys are NOT set** in `.env` (placeholders). payOS link creation
-   and real email sending require real keys. Idempotency/credit logic is covered by tests
-   that call the service directly (see `apps/api/test/payment-idempotency.test.ts`).
-   File upload now works without R2 too: API stores bytes in local `.data/uploads` and still
-   writes `files` metadata. When R2 creds are provided, the same API switches to R2 automatically.
+4. **SePay / Resend / R2 config now materially affects test behavior.** SePay QR generation and
+   webhook validation require the SePay bank config + webhook secret instead of PayOS keys.
+   File upload switches between local `.data/uploads` and R2 depending on `R2_*`.
+   Email sending switches between console-dev fallback and real Resend depending on `RESEND_API_KEY`.
+   Several tests are therefore env-sensitive unless those vars are overridden in the command.
 5. **pnpm overrides** in root `package.json`: `ioredis@5.10.1` (match BullMQ), and
    `@types/react`/`@types/react-dom` pinned to v19 (admin also moved to React 19).
 6. **`AuthModule` is `@Global`** so guards (`JwtAuthGuard`, `AdminAuthGuard`) + `TokensService`
@@ -94,8 +107,11 @@ pnpm build                     # full monorepo build
    encrypted via `@cynex/shared` `encrypt()`. Admin list/getOne return MASKED data
    (`hasPassword`, `hasKey`, …). Reveal happens only via explicit admin endpoints and now
    writes `ADMIN_VIEW_SECRET` audit rows.
-9. **Soft deletes:** admin delete sets status to archived/disabled/invalid/cancelled rather
-   than hard-deleting (preserves order history).
+9. **Admin delete semantics changed for targeted resources.** `supply-sources`, `source-orders`,
+   `inventory-accounts`, `inventory-keys`, `email-logs`, and `audit-logs` now hard-delete when
+   preflight says it is safe; otherwise they return `409` with `blockingDependencies`.
+   The admin UI now renders `integrityWarnings` on list/detail pages and surfaces blocked-delete
+   dependency messages to the operator.
 
 ## Local gotchas learned (save yourself time)
 
@@ -126,8 +142,9 @@ pnpm build                     # full monorepo build
   rate-limited, no email enumeration). Guards: `JwtAuthGuard`, `AdminAuthGuard`.
 - `catalog/*` — public `/products`, `/products/:slug`, `/categories`
 - `orders/*` — create order (+ fulfillment row per item), list, get-by-code (ownership), pay-wallet
-- `payment/*` — payOS link creation, **idempotent** webhook `/webhooks/payos`, deposit creation,
-  `markPaid` (order + deposit branches), enqueues confirmation emails
+- `payment/*` — SePay QR payload creation for order checkout + wallet deposit, **idempotent**
+  webhook `/webhooks/sepay`, pending-attempt invalidation on retry, `markPaid` (order + deposit
+  branches), enqueues confirmation emails
 - `wallet/*` — atomic `WalletService.applyDelta` (credit/debit, ledger, no-negative), `/wallet`,
   `/wallet/transactions`, `/wallet/deposit`
 - `queue/*` — BullMQ producer (`QueueService.enqueueEmail/enqueueAlert`)
@@ -169,6 +186,8 @@ pnpm build                     # full monorepo build
 - Pages: `/`, `/products`, `/products/[slug]` (+ `BuyPanel`), `/login`, `/register`,
   `/forgot-password`, `/reset-password`, `/checkout/[orderCode]` (+ return/cancel),
   `/orders`, `/orders/[orderCode]`, `/orders/[orderCode]/warranty`, `/wallet`, `/warranty`
+- `apps/web` checkout + wallet now render SePay QR / transfer instructions directly instead of
+  redirecting to a hosted payment URL
 - `lib/api.ts` (token + fetch), `lib/utils.ts`, `lib/status.ts`
 
 ### apps/admin (React Admin + MUI)
@@ -313,5 +332,5 @@ The full Phase 5 feature set is now implemented:
 ---
 
 ## Open env vars to fill for full functionality (`.env`)
-`PAYOS_CLIENT_ID/API_KEY/CHECKSUM_KEY`, `RESEND_API_KEY`, `R2_*`, `SENTRY_DSN`.
+`SEPAY_BANK_NAME`, `SEPAY_BANK_ACCOUNT`, `SEPAY_ACCOUNT_HOLDER`, `SEPAY_QR_TEMPLATE`, `SEPAY_WEBHOOK_SECRET`, `RESEND_API_KEY`, `R2_*`, `SENTRY_DSN`.
 `ENCRYPTION_KEY`, `JWT_*` already have working dev values.

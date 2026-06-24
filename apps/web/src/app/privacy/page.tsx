@@ -8,7 +8,7 @@ export default function PrivacyPage() {
         nâng cấp) để xử lý đơn và hỗ trợ bảo hành. Mật khẩu được băm; credential giao hàng được mã hóa khi lưu trữ.
       </p>
       <p>
-        Chúng tôi không bán dữ liệu cá nhân. Thông tin thanh toán qua payOS tuân theo bảo mật của đối tác thanh toán.
+        Chúng tôi không bán dữ liệu cá nhân. Thông tin thanh toán qua SePay tuân theo bảo mật của đối tác thanh toán.
         Email giao dịch gửi qua Resend; file đính kèm bảo hành lưu trên Cloudflare R2 (metadata trong PostgreSQL).
       </p>
       <p>

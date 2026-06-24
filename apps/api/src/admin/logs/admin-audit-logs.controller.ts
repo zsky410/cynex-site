@@ -1,12 +1,16 @@
-import { Controller, Get, Param, Query, UseGuards } from "@nestjs/common";
+import { Controller, Delete, Get, Param, Query, UseGuards } from "@nestjs/common";
 import { AdminAuthGuard } from "../../auth/guards";
 import { PrismaService } from "../../prisma/prisma.service";
+import { AdminIntegrityService } from "../integrity/admin-integrity.service";
 import { parseListQuery } from "../common/list-query";
 
 @UseGuards(AdminAuthGuard)
 @Controller("admin/audit-logs")
 export class AdminAuditLogsController {
-  constructor(private readonly prisma: PrismaService) {}
+  constructor(
+    private readonly prisma: PrismaService,
+    private readonly integrity: AdminIntegrityService,
+  ) {}
 
   @Get()
   async list(@Query() q: Record<string, any>) {
@@ -27,7 +31,7 @@ export class AdminAuditLogsController {
       ];
     }
 
-    const [data, total] = await Promise.all([
+    const [rows, total] = await Promise.all([
       this.prisma.auditLog.findMany({
         where,
         skip,
@@ -36,11 +40,29 @@ export class AdminAuditLogsController {
       }),
       this.prisma.auditLog.count({ where }),
     ]);
+    const data = await Promise.all(
+      rows.map(async (row) => ({
+        ...row,
+        integrityWarnings: await this.integrity.getAuditLogWarnings(row),
+      })),
+    );
     return { data, total };
   }
 
   @Get(":id")
   async getOne(@Param("id") id: string) {
-    return { data: await this.prisma.auditLog.findUniqueOrThrow({ where: { id } }) };
+    const row = await this.prisma.auditLog.findUniqueOrThrow({ where: { id } });
+    return {
+      data: {
+        ...row,
+        integrityWarnings: await this.integrity.getAuditLogWarnings(row),
+      },
+    };
+  }
+
+  @Delete(":id")
+  async remove(@Param("id") id: string) {
+    await this.integrity.getAuditLogDeletePreflight(id);
+    return { data: await this.prisma.auditLog.delete({ where: { id } }) };
   }
 }

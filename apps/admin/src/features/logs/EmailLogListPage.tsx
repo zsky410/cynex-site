@@ -4,11 +4,14 @@ import { useEffect, useMemo, useState } from "react";
 import { useNavigate, useSearchParams } from "react-router-dom";
 import { AsyncState } from "../../components/common/AsyncState";
 import { FilterBar } from "../../components/common/FilterBar";
+import { IntegrityWarningCell } from "../../components/common/IntegrityWarningCell";
 import { PageHeader } from "../../components/common/PageHeader";
 import { ResourceTable } from "../../components/common/ResourceTable";
 import { StandardBulkActions } from "../../components/common/StandardBulkActions";
+import { useBulkDelete } from "../../components/common/useBulkDelete";
 import { useListSelection } from "../../components/common/useListSelection";
 import { StatusTag } from "../../components/common/StatusTag";
+import type { IntegrityWarning } from "../../components/common/IntegrityWarningAlert";
 import { listResource } from "../../lib/admin-api";
 import { labels } from "../../lib/labels";
 
@@ -21,6 +24,7 @@ type EmailLogRecord = {
   sentAt?: string | null;
   createdAt: string;
   order?: { orderCode?: string };
+  integrityWarnings: IntegrityWarning[];
 };
 
 type EmailLogFilter = {
@@ -49,6 +53,15 @@ export default function EmailLogListPage() {
   const currentStatus = searchParams.get("status") ?? undefined;
   const currentQuery = searchParams.get("q") ?? undefined;
   const selection = useListSelection<EmailLogRecord>(searchParams.toString());
+  const { deleting, deleteSelected } = useBulkDelete({
+    resource: "email-logs",
+    selectedRowKeys: selection.selectedRowKeys,
+    onDeleted: (deletedIds) => {
+      setRows((currentRows) => currentRows.filter((row) => !deletedIds.includes(row.id)));
+      setTotal((currentTotal) => Math.max(0, currentTotal - deletedIds.length));
+      selection.clearSelection();
+    },
+  });
 
   useEffect(() => {
     form.setFieldsValue({ type: currentType, status: currentStatus, q: currentQuery });
@@ -77,6 +90,7 @@ export default function EmailLogListPage() {
 
   const columns = useMemo<ColumnsType<EmailLogRecord>>(
     () => [
+      { title: "", key: "integrityWarnings", width: 44, render: (_, record) => <IntegrityWarningCell integrityWarnings={record.integrityWarnings} /> },
       { title: "Loại email", dataIndex: "type", key: "type" },
       { title: labels.status, dataIndex: "status", key: "status", render: (value: string) => <StatusTag status={value} /> },
       { title: "Người nhận", dataIndex: "toEmail", key: "toEmail", render: (value?: string | null) => value || "-" },
@@ -140,6 +154,8 @@ export default function EmailLogListPage() {
                 selectedRows={selection.selectedRows}
                 onClear={selection.clearSelection}
                 onView={(row) => navigate(`/shell/email-logs/${row.id}`)}
+                onDelete={deleteSelected}
+                deleting={deleting}
               />
             ),
           }}

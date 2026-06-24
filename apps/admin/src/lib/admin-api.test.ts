@@ -52,7 +52,14 @@ describe("admin-api bulk delete", () => {
 
     expect(result).toEqual({
       succeededIds: ["p1"],
-      failed: [{ id: "p2", message: "Không thể xóa" }],
+      failed: [
+        {
+          id: "p2",
+          message: "Không thể xóa",
+          status: 400,
+          body: { message: "Không thể xóa" },
+        },
+      ],
     });
   });
 });

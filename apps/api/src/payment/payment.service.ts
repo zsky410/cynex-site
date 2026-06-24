@@ -7,14 +7,15 @@ import {
 } from "@nestjs/common";
 import { ConfigService } from "@nestjs/config";
 import { PrismaService } from "../prisma/prisma.service";
-import { PayosService } from "./payos.service";
 import { QueueService, EMAIL_JOB } from "../queue/queue.service";
 import { WalletService } from "../wallet/wallet.service";
 import { EmailType } from "@cynex/shared";
+import { SepayService } from "./sepay.service";
 
-// payOS requires a numeric, unique order code. Build one that fits a JS safe int.
-function genPayosOrderCode(): number {
-  return Math.floor(Date.now() / 1000) * 1000 + Math.floor(Math.random() * 1000);
+function genSepayPaymentCode(): string {
+  return `SEP${Date.now()}${Math.floor(Math.random() * 1000)
+    .toString()
+    .padStart(3, "0")}`;
 }
 
 @Injectable()
@@ -23,36 +24,49 @@ export class PaymentService {
 
   constructor(
     private readonly prisma: PrismaService,
-    private readonly payos: PayosService,
+    private readonly sepay: SepayService,
     private readonly queue: QueueService,
     private readonly config: ConfigService,
     private readonly wallet: WalletService,
   ) {}
 
   async createDeposit(userId: string, amount: number) {
-    const payosOrderCode = genPayosOrderCode();
-    const payment = await this.prisma.payment.create({
-      data: {
-        paymentCode: String(payosOrderCode),
-        userId,
-        amount,
-        provider: "payos",
-        isDeposit: true,
-        status: "pending",
-      },
-    });
-    const link = await this.payos.createLink({
-      payosOrderCode,
+    const paymentCode = genSepayPaymentCode();
+    const payload = this.sepay.createPaymentPayload({
+      paymentCode,
       amount,
-      description: `Cynex nap ${payment.paymentCode}`,
-      returnUrl: this.config.getOrThrow("PAYOS_RETURN_URL"),
-      cancelUrl: this.config.getOrThrow("PAYOS_CANCEL_URL"),
     });
-    await this.prisma.payment.update({
-      where: { id: payment.id },
-      data: { checkoutUrl: link.checkoutUrl, qrCode: link.qrCode, providerPaymentId: link.paymentLinkId },
+
+    const payment = await this.prisma.$transaction(async (tx) => {
+      await tx.payment.updateMany({
+        where: {
+          userId,
+          isDeposit: true,
+          provider: "sepay",
+          status: "pending",
+        },
+        data: {
+          status: "cancelled",
+        },
+      });
+
+      return tx.payment.create({
+        data: {
+          paymentCode,
+          userId,
+          amount,
+          provider: "sepay",
+          isDeposit: true,
+          status: "pending",
+          qrCode: payload.qrCode,
+        },
+      });
     });
-    return { checkoutUrl: link.checkoutUrl, qrCode: link.qrCode, paymentCode: payment.paymentCode };
+
+    return {
+      ...payload,
+      paymentCode: payment.paymentCode,
+    };
   }
 
   async createOrderPayment(userId: string, orderCode: string) {
@@ -63,43 +77,50 @@ export class PaymentService {
       throw new BadRequestException("Đơn hàng không ở trạng thái chờ thanh toán");
     }
 
-    // Reuse an existing pending payOS link if present (avoid duplicate payments).
-    const existing = await this.prisma.payment.findFirst({
-      where: { orderId: order.id, provider: "payos", status: "pending" },
-    });
-    if (existing?.checkoutUrl) {
-      return { checkoutUrl: existing.checkoutUrl, qrCode: existing.qrCode, paymentCode: existing.paymentCode };
-    }
-
-    const payosOrderCode = genPayosOrderCode();
-    const payment = await this.prisma.payment.create({
-      data: {
-        paymentCode: String(payosOrderCode),
-        orderId: order.id,
-        userId,
-        amount: order.totalAmount,
-        provider: "payos",
-        status: "pending",
-      },
-    });
-
-    const link = await this.payos.createLink({
-      payosOrderCode,
+    const paymentCode = genSepayPaymentCode();
+    const payload = this.sepay.createPaymentPayload({
+      paymentCode,
       amount: order.totalAmount,
-      description: `Cynex ${order.orderCode}`,
-      returnUrl: this.config.getOrThrow("PAYOS_RETURN_URL"),
-      cancelUrl: this.config.getOrThrow("PAYOS_CANCEL_URL"),
     });
 
-    await this.prisma.payment.update({
-      where: { id: payment.id },
-      data: { checkoutUrl: link.checkoutUrl, qrCode: link.qrCode, providerPaymentId: link.paymentLinkId },
+    const payment = await this.prisma.$transaction(async (tx) => {
+      await tx.payment.updateMany({
+        where: {
+          orderId: order.id,
+          provider: "sepay",
+          status: "pending",
+        },
+        data: {
+          status: "cancelled",
+        },
+      });
+
+      return tx.payment.create({
+        data: {
+          paymentCode,
+          orderId: order.id,
+          userId,
+          amount: order.totalAmount,
+          provider: "sepay",
+          status: "pending",
+          qrCode: payload.qrCode,
+        },
+      });
     });
 
-    return { checkoutUrl: link.checkoutUrl, qrCode: link.qrCode, paymentCode: payment.paymentCode };
+    return {
+      ...payload,
+      paymentCode: payment.paymentCode,
+    };
   }
 
   // Idempotent: a duplicate webhook for an already-paid payment is a no-op.
+  async findPendingPayment(paymentCode: string) {
+    return this.prisma.payment.findFirst({
+      where: { paymentCode, status: "pending" },
+    });
+  }
+
   async markPaid(
     paymentCode: string,
     providerTransactionId: string | undefined,
@@ -110,12 +131,12 @@ export class PaymentService {
       this.logger.warn(`webhook for unknown paymentCode ${paymentCode}`);
       return { handled: false };
     }
-    if (payment.status === "paid") return { handled: true, duplicate: true };
+    if (payment.status !== "pending") return { handled: true, duplicate: true };
 
     let didTransition = false;
     await this.prisma.$transaction(async (tx) => {
       const fresh = await tx.payment.findUnique({ where: { id: payment.id } });
-      if (!fresh || fresh.status === "paid") return;
+      if (!fresh || fresh.status !== "pending") return;
 
       await tx.payment.update({
         where: { id: payment.id },
@@ -133,7 +154,7 @@ export class PaymentService {
           data: {
             paymentStatus: "paid",
             fulfillmentStatus: "paid_waiting_admin",
-            paymentMethod: "payos",
+            paymentMethod: "sepay",
             paidAt: new Date(),
           },
         });
@@ -156,7 +177,7 @@ export class PaymentService {
           fresh.userId,
           fresh.amount,
           "deposit",
-          { referenceType: "payment", referenceId: fresh.id, description: "Nạp tiền payOS" },
+          { referenceType: "payment", referenceId: fresh.id, description: "Nạp tiền SePay" },
         );
       }
       didTransition = true;
