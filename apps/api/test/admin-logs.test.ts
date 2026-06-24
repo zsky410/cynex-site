@@ -4,10 +4,11 @@ import { PrismaClient } from "@cynex/db";
 import { AuditAction } from "@cynex/shared";
 import { AdminEmailLogsController } from "../src/admin/logs/admin-email-logs.controller";
 import { AdminAuditLogsController } from "../src/admin/logs/admin-audit-logs.controller";
+import { AdminIntegrityService } from "../src/admin/integrity/admin-integrity.service";
 
 const prisma = new PrismaClient();
 const emailLogs = new AdminEmailLogsController(prisma as any);
-const auditLogs = new AdminAuditLogsController(prisma as any);
+const auditLogs = new AdminAuditLogsController(prisma as any, new AdminIntegrityService(prisma as any));
 
 after(async () => {
   await prisma.$disconnect();
@@ -49,6 +50,7 @@ test("admin email-log viewer lists by type and returns detail with user/order co
     });
     assert.equal(list.total >= 1, true);
     assert.equal(list.data.some((row: any) => row.id === email.id), true);
+    assert.equal(list.data.every((row: any) => row.type === "refund"), true);
 
     const detail = await emailLogs.getOne(email.id);
     assert.equal(detail.data.id, email.id);
@@ -83,6 +85,7 @@ test("admin audit-log viewer lists by action and returns detail", async () => {
     });
     assert.equal(list.total >= 1, true);
     assert.equal(list.data.some((row: any) => row.id === log.id), true);
+    assert.equal(list.data.every((row: any) => row.action === AuditAction.ADMIN_REFUND_ORDER), true);
 
     const detail = await auditLogs.getOne(log.id);
     assert.equal(detail.data.id, log.id);

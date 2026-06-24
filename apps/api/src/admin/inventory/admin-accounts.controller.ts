@@ -14,6 +14,7 @@ import {
 import { AdminAuthGuard } from "../../auth/guards";
 import { PrismaService } from "../../prisma/prisma.service";
 import { AdminIntegrityService } from "../integrity/admin-integrity.service";
+import { type BlockingDependency } from "../integrity/integrity.types";
 import { parseListQuery } from "../common/list-query";
 import { encrypt, encryptNullable } from "@cynex/shared";
 
@@ -59,7 +60,7 @@ function mapBody(b: Record<string, any>, isCreate: boolean): Record<string, any>
 
 function throwDeleteBlocked(
   id: string,
-  blockingDependencies: Array<{ resource: string; count: number; sampleIds: string[] }>,
+  blockingDependencies: BlockingDependency[],
 ): never {
   throw new ConflictException({
     message: "Cannot delete inventory account while dependent records exist.",

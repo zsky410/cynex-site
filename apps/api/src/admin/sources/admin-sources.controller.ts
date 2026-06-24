@@ -5,6 +5,7 @@ import { CurrentAdmin, AuthAdmin } from "../../common/current-user.decorator";
 import { AuditService } from "../../audit/audit.service";
 import { PrismaService } from "../../prisma/prisma.service";
 import { AdminIntegrityService } from "../integrity/admin-integrity.service";
+import { type BlockingDependency } from "../integrity/integrity.types";
 import { parseListQuery } from "../common/list-query";
 
 const FIELDS = [
@@ -35,7 +36,7 @@ function throwDeleteBlocked(
   resource: string,
   id: string,
   message: string,
-  blockingDependencies: Array<{ resource: string; count: number; sampleIds: string[] }>,
+  blockingDependencies: BlockingDependency[],
 ): never {
   throw new ConflictException({
     message,
@@ -88,7 +89,7 @@ export class AdminSourcesController {
   }
 
   @Delete(":id")
-  async remove(@Param("id") id: string, @CurrentAdmin() admin?: AuthAdmin) {
+  async remove(@Param("id") id: string) {
     const preflight = await this.integrity.getSupplySourceDeletePreflight(id);
     if (!preflight.canDelete) {
       throwDeleteBlocked(
@@ -99,12 +100,6 @@ export class AdminSourcesController {
       );
     }
 
-    const data = await this.prisma.supplySource.delete({ where: { id } });
-    if (admin) {
-      await this.audit.logAdminAction(admin.id, AuditAction.ADMIN_UPDATE_SOURCE, "supply_source", id, {
-        action: "hard_delete",
-      });
-    }
-    return { data };
+    return { data: await this.prisma.supplySource.delete({ where: { id } }) };
   }
 }

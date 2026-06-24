@@ -2,6 +2,7 @@ import { Body, ConflictException, Controller, Delete, Get, Param, Patch, Post, Q
 import { AdminAuthGuard } from "../../auth/guards";
 import { PrismaService } from "../../prisma/prisma.service";
 import { AdminIntegrityService } from "../integrity/admin-integrity.service";
+import { type BlockingDependency } from "../integrity/integrity.types";
 import { parseListQuery } from "../common/list-query";
 import { encryptNullable } from "@cynex/shared";
 
@@ -26,9 +27,17 @@ function mapBody(b: Record<string, any>): Record<string, any> {
   return o;
 }
 
+function serializeSourceOrder<T extends { sourcePayloadEncrypted?: string | null }>(row: T) {
+  const { sourcePayloadEncrypted, ...rest } = row;
+  return {
+    ...rest,
+    hasSourcePayload: !!sourcePayloadEncrypted,
+  };
+}
+
 function throwDeleteBlocked(
   id: string,
-  blockingDependencies: Array<{ resource: string; count: number; sampleIds: string[] }>,
+  blockingDependencies: BlockingDependency[],
 ): never {
   throw new ConflictException({
     message: "Cannot delete source order while dependent records exist.",
@@ -65,36 +74,33 @@ export class AdminSourceOrdersController {
       this.prisma.sourceOrder.count({ where }),
     ]);
     // Never leak the encrypted payload in list/getOne.
-    const data = rows.map(({ sourcePayloadEncrypted, ...r }) => ({
-      ...r,
-      hasSourcePayload: !!sourcePayloadEncrypted,
-    }));
+    const data = rows.map(serializeSourceOrder);
     return { data, total };
   }
 
   @Get(":id")
   async getOne(@Param("id") id: string) {
-    const { sourcePayloadEncrypted, ...r } = await this.prisma.sourceOrder.findUniqueOrThrow({
+    const row = await this.prisma.sourceOrder.findUniqueOrThrow({
       where: { id },
     });
-    return { data: { ...r, hasSourcePayload: !!sourcePayloadEncrypted } };
+    return { data: serializeSourceOrder(row) };
   }
 
   @Post()
   async create(@Body() b: Record<string, any>) {
-    const { sourcePayloadEncrypted, ...r } = await this.prisma.sourceOrder.create({
+    const row = await this.prisma.sourceOrder.create({
       data: mapBody(b) as any,
     });
-    return { data: r };
+    return { data: serializeSourceOrder(row) };
   }
 
   @Patch(":id")
   async update(@Param("id") id: string, @Body() b: Record<string, any>) {
-    const { sourcePayloadEncrypted, ...r } = await this.prisma.sourceOrder.update({
+    const row = await this.prisma.sourceOrder.update({
       where: { id },
       data: mapBody(b),
     });
-    return { data: r };
+    return { data: serializeSourceOrder(row) };
   }
 
   @Delete(":id")
