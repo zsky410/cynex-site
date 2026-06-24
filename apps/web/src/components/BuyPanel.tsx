@@ -1,7 +1,7 @@
 "use client";
 
 import { useRouter } from "next/navigation";
-import { ShoppingCart, ShieldCheck, Star, WalletCards } from "lucide-react";
+import { ShoppingCart, WalletCards } from "lucide-react";
 import { useMemo, useState } from "react";
 import { apiFetch, getToken, ApiError } from "@/lib/api";
 import { cn, formatVnd } from "@/lib/utils";
@@ -10,12 +10,12 @@ import {
   validateCustomerInput,
   type CustomerInputField,
 } from "./buy-panel-customer-input";
-import { getVariantPrimaryLabel, getVariantSecondaryLabel } from "./buy-panel-labels";
 
 export interface Variant {
   id: string;
   name: string;
   price: number;
+  discountPercent?: number | null;
   durationDays?: number | null;
   fulfillmentType: string;
   warrantyDays: number;
@@ -25,16 +25,9 @@ export interface Variant {
   status: string;
 }
 
-const FULFILLMENT_LABEL: Record<string, string> = {
-  CUSTOMER_ACCOUNT_UPGRADE: "Nâng cấp chính chủ",
-  DEDICATED_ACCOUNT: "Tài khoản riêng",
-  SHARED_ACCOUNT: "Tài khoản dùng chung",
-  LICENSE_KEY: "Key/License",
-  MANUAL_DELIVERY: "Giao thủ công",
-};
-
-function inferReferencePrice(price: number): number {
-  return Math.round(price * 2.82 / 1000) * 1000;
+function deriveOriginalPrice(price: number, discountPercent?: number | null): number | null {
+  if (!discountPercent || discountPercent <= 0 || discountPercent >= 100) return null;
+  return Math.round(price / (1 - discountPercent / 100));
 }
 
 export function BuyPanel({
@@ -63,6 +56,7 @@ export function BuyPanel({
   const selected = orderedVariants.find((v) => v.id === selectedId);
   if (!selected) return <p className="text-slate-400">Chưa có gói bán.</p>;
   const activeVariant = selected;
+  const activeOldPrice = deriveOriginalPrice(activeVariant.price, activeVariant.discountPercent);
   const configuredCustomerFields = getConfiguredCustomerFields(activeVariant.customerInputSchema);
 
   async function buy() {
@@ -124,98 +118,75 @@ export function BuyPanel({
 
   return (
     <div>
-      <div className="mb-6 flex items-center gap-4 text-sm text-slate-500">
-        <span className="inline-flex items-center gap-1.5 text-amber-400">
-          <Star className="h-4 w-4 fill-current" />
-          <span className="font-semibold text-slate-800">4.9</span>
-          <span>(128 đánh giá)</span>
-        </span>
-        <span className="text-slate-300">•</span>
-        <span className="inline-flex items-center gap-2 text-sky-600">
-          <ShieldCheck className="h-4 w-4" />
-          Bảo hành trọn thời gian
-        </span>
+      <div className="border-b border-slate-200 pb-3">
+        <div className="flex flex-wrap items-end gap-x-3 gap-y-2">
+          <span className="text-[30px] font-semibold tracking-[-0.05em] text-slate-900 sm:text-[34px]">
+            {formatVnd(activeVariant.price)}
+          </span>
+          {activeOldPrice ? (
+            <>
+              <span className="text-base text-slate-400 line-through sm:text-lg">
+                {formatVnd(activeOldPrice)}
+              </span>
+              <span className="inline-flex rounded-md bg-red-500 px-2 py-1 text-xs font-semibold text-white">
+                -{activeVariant.discountPercent}%
+              </span>
+            </>
+          ) : null}
+        </div>
       </div>
 
-      <div className="border-t border-slate-200 pt-7">
-        <h2 className="text-lg font-semibold text-slate-900">Chọn gói thời gian</h2>
+      <div className="mt-4">
+        <h2 className="text-[15px] font-semibold text-slate-900">Thời gian sử dụng</h2>
       </div>
 
-      <div className="mt-5 space-y-3">
-        {orderedVariants.map((v, index) => {
+      <div className="mt-2.5 flex flex-wrap gap-2">
+        {orderedVariants.map((v) => {
           const selectedVariant = v.id === selectedId;
           const soldOut = v.status === "out_of_stock";
-          const primaryLabel = getVariantPrimaryLabel(v);
-          const secondaryLabel = getVariantSecondaryLabel(v);
-          const oldPrice = inferReferencePrice(v.price);
           return (
-          <label
-            key={v.id}
-            className={cn(
-              "block cursor-pointer rounded-[18px] border px-4 py-4 transition",
-              selectedVariant
-                ? "border-sky-500 bg-[#eef5ff] text-slate-900 shadow-[0_0_0_1px_rgba(14,165,233,0.25)]"
-                : "border-slate-200 bg-white text-slate-900 hover:border-sky-200",
-              soldOut && "opacity-75",
-            )}
-          >
-            <div className="flex items-start justify-between gap-4">
-              <span className="flex items-start gap-3">
-                <span
-                  className={cn(
-                    "mt-1 flex h-7 w-7 items-center justify-center rounded-full border-2",
-                    selectedVariant ? "border-sky-600" : "border-slate-300",
-                  )}
-                >
-                  <input
-                    type="radio"
-                    name="variant"
-                    checked={selectedVariant}
-                    onChange={() => {
-                      setSelectedId(v.id);
-                      setCartNotice(null);
-                    }}
-                    disabled={soldOut}
-                    className="h-3.5 w-3.5 accent-sky-600"
-                  />
-                </span>
-                <span>
-                  <span className="block text-[18px] font-medium tracking-[-0.03em]">{primaryLabel}</span>
-                  <span className="mt-1 block text-xs text-slate-500">
-                    {[secondaryLabel, FULFILLMENT_LABEL[v.fulfillmentType] ?? v.fulfillmentType]
-                      .filter(Boolean)
-                      .join(" · ")}
-                    {v.estimatedDeliveryMinutes ? ` · xử lý ~${v.estimatedDeliveryMinutes} phút` : ""}
-                  </span>
-                  {selectedVariant && index === 0 ? (
-                    <span className="mt-2 inline-flex rounded-full bg-sky-100 px-3 py-1 text-xs font-medium text-sky-700">
-                      Tiết kiệm nhất
-                    </span>
-                  ) : null}
-                  {soldOut ? <span className="mt-2 block text-xs text-red-500">Hết hàng</span> : null}
-                </span>
-              </span>
-
-              <span className="text-right">
-                <span className="block text-[18px] font-semibold text-sky-700">{formatVnd(v.price)}</span>
-                <span className="block text-sm text-slate-400 line-through">{formatVnd(oldPrice)}</span>
-              </span>
-            </div>
-          </label>
-        )})}
+            <label
+              key={v.id}
+              className={cn(
+                "inline-flex cursor-pointer rounded-xl border px-3.5 py-2 text-[14px] font-medium leading-none transition sm:px-4 sm:py-2.5 sm:text-[15px]",
+                selectedVariant
+                  ? "border-[#3b82f6] bg-[#3b82f6] text-white shadow-[0_10px_24px_rgba(59,130,246,0.24)]"
+                  : "border-slate-300 bg-white text-slate-700 hover:border-slate-400",
+                soldOut && "opacity-75",
+              )}
+            >
+              <input
+                type="radio"
+                name="variant"
+                checked={selectedVariant}
+                onChange={() => {
+                  setSelectedId(v.id);
+                  setCartNotice(null);
+                }}
+                disabled={soldOut}
+                className="sr-only"
+              />
+              <span>{v.name}</span>
+            </label>
+          );
+        })}
       </div>
 
+      {activeVariant.status === "out_of_stock" ? (
+        <p className="mt-3 text-sm font-medium text-red-500">Gói đang chọn hiện đã hết hàng.</p>
+      ) : null}
+
       {activeVariant.requiresCustomerInput && (
-        <div className="mt-5 rounded-[20px] border border-slate-200 bg-white p-4 shadow-[0_16px_40px_rgba(15,23,42,0.05)]">
-          <p className="text-sm font-medium text-slate-900">Thông tin cần cung cấp</p>
+        <div className="mt-4 rounded-[18px] border border-slate-200/80 bg-white/60 p-3.5 backdrop-blur-[1px]">
+          <p className="text-[15px] font-semibold text-slate-900">Thông tin cần cung cấp</p>
           {configuredCustomerFields.length ? configuredCustomerFields.map((f) => (
             <div key={f.name} className="mt-3">
-              <label className="text-xs text-slate-500">
+              <label className="text-xs font-medium text-slate-500">
                 {f.label}
                 {f.required ? <span className="ml-1 text-red-500">*</span> : null}
               </label>
               <input
-                className="mt-1 w-full rounded-xl border border-slate-200 bg-white px-3 py-3 text-sm text-slate-900 outline-none transition focus:border-sky-300"
+                className="mt-1 w-full rounded-xl border border-slate-200 bg-slate-50/70 px-3 py-2.5 text-sm text-slate-900 outline-none transition focus:border-sky-300 focus:bg-white"
                 type={f.type === "email" || f.type === "password" || f.type === "tel" ? f.type : "text"}
                 placeholder={f.placeholder ?? `Nhập ${f.label.toLowerCase()}`}
                 value={input[f.name] ?? ""}
@@ -230,16 +201,16 @@ export function BuyPanel({
         </div>
       )}
 
-      {error && <p className="mt-4 text-sm text-red-600">{error}</p>}
-      {cartNotice && <p className="mt-4 text-sm text-sky-700">{cartNotice}</p>}
+      {error && <p className="mt-2.5 text-sm text-red-600">{error}</p>}
+      {cartNotice && <p className="mt-2.5 text-sm text-sky-700">{cartNotice}</p>}
 
-      <div className="mt-8 grid gap-4 sm:grid-cols-2">
+      <div className="mt-4 grid gap-2.5 sm:grid-cols-2">
         <button
           onClick={buy}
           disabled={loading || selected.status === "out_of_stock"}
-          className="inline-flex items-center justify-center gap-3 rounded-[18px] bg-[#2faee7] px-6 py-4 text-lg font-semibold text-white shadow-[0_10px_0_rgba(11,46,91,0.18)] transition hover:bg-[#249fd7] disabled:opacity-50"
+          className="inline-flex items-center justify-center gap-2.5 rounded-[18px] bg-[linear-gradient(180deg,#49a3ff_0%,#2563eb_100%)] px-5 py-3 text-base font-semibold text-white shadow-[0_10px_0_rgba(29,78,216,0.16),0_14px_26px_rgba(59,130,246,0.24)] transition hover:translate-y-0.5 hover:shadow-[0_8px_0_rgba(29,78,216,0.16),0_12px_22px_rgba(59,130,246,0.2)] disabled:translate-y-0 disabled:opacity-50"
         >
-          <WalletCards className="h-5 w-5" />
+          <WalletCards className="h-4.5 w-4.5" />
           {selected.status === "out_of_stock" ? "Tạm hết hàng" : loading ? "Đang xử lý..." : "Mua ngay"}
         </button>
 
@@ -247,9 +218,9 @@ export function BuyPanel({
           type="button"
           onClick={addToCart}
           disabled={selected.status === "out_of_stock"}
-          className="inline-flex items-center justify-center gap-3 rounded-[18px] border border-sky-600 bg-white px-6 py-4 text-lg font-semibold text-sky-700 transition hover:bg-sky-50 disabled:opacity-50"
+          className="inline-flex items-center justify-center gap-2.5 rounded-[18px] border-2 border-[#60a5fa] bg-white px-5 py-3 text-base font-semibold text-[#2563eb] transition hover:border-[#3b82f6] hover:bg-sky-50/40 disabled:opacity-50"
         >
-          <ShoppingCart className="h-5 w-5" />
+          <ShoppingCart className="h-4.5 w-4.5" />
           Thêm vào giỏ hàng
         </button>
       </div>

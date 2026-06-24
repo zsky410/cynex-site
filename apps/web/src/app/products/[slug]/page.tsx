@@ -97,35 +97,28 @@ export default async function ProductDetailPage({
   ];
 
   return (
-    <div className="min-h-screen bg-[#f4f6fb] text-slate-900">
+    <div className="home-shell min-h-screen text-slate-900">
       <PremiumHeader activeKey="products" />
       <main>
-        <div className="mx-auto max-w-[1280px] px-5 pb-28 pt-14 lg:px-8">
-          <div className="mb-8 flex flex-wrap items-center gap-3 text-sm text-slate-500">
+        <div className="mx-auto max-w-[1120px] px-5 pb-28 pt-12 lg:px-8">
+          <div className="mb-5 flex flex-wrap items-center gap-3 text-sm text-slate-500">
             <Link href="/" className="transition hover:text-sky-400">
               Trang chủ
             </Link>
             <ChevronRight className="h-4 w-4" />
             <Link href="/products" className="transition hover:text-sky-400">
-              {product.category?.name ?? "Phần mềm"}
+              {product.category?.name ?? "Sản phẩm"}
             </Link>
             <ChevronRight className="h-4 w-4" />
             <span className="text-sky-900">{product.name}</span>
           </div>
 
-          <article className="grid items-start gap-10 py-8 lg:grid-cols-[1fr_0.98fr]">
-            <div className={(product.image?.publicUrl ? "" : visual.glowClass + " ") + "self-start overflow-hidden rounded-[28px]"}>
-              <div className="relative overflow-hidden rounded-[28px]">
-                <div className="absolute left-6 top-6 z-10 flex items-center gap-3">
-                  <span className="rounded-full bg-sky-100 px-4 py-2 text-sm font-medium text-sky-700">
-                    {product.category?.name ?? "Phần mềm"}
-                  </span>
-                  <span className="rounded-full bg-red-100 px-4 py-2 text-sm font-medium text-red-500">Hot Sale</span>
-                </div>
-
+          <article className="grid items-start gap-5 py-4 lg:grid-cols-[minmax(0,0.88fr)_minmax(320px,0.78fr)] lg:gap-7">
+            <div className={"mx-auto w-full max-w-[580px] self-start " + (product.image?.publicUrl ? "" : visual.glowClass + " ")}>
+              <div className="relative overflow-hidden rounded-[18px]">
                 <div
                   className={`
-                  relative flex aspect-[1268/636] min-h-[240px] items-center justify-center overflow-hidden
+                  relative flex aspect-[1268/636] min-h-[200px] items-center justify-center overflow-hidden rounded-[18px]
                   ${product.image?.publicUrl ? "bg-transparent" : `bg-gradient-to-br ${visual.tileClass}`}
                 `}
                 >
@@ -134,13 +127,13 @@ export default async function ProductDetailPage({
                     <img
                       src={product.image.publicUrl}
                       alt={product.name}
-                      className="relative z-[1] h-full w-full rounded-[22px] object-contain"
+                      className="relative z-[1] h-full w-full rounded-[18px] object-contain"
                     />
                   ) : (
                     <>
                       <div className="absolute inset-0 bg-[radial-gradient(circle_at_center,rgba(255,255,255,0.18),transparent_36%)]" />
                       <div className="absolute inset-0 opacity-30 [background-image:linear-gradient(rgba(255,255,255,0.04)_1px,transparent_1px),linear-gradient(90deg,rgba(255,255,255,0.04)_1px,transparent_1px)] [background-size:32px_32px]" />
-                      <div className="relative h-[250px] w-[480px] max-w-full rounded-[18px] border border-slate-400/50 bg-gradient-to-br from-slate-300 via-slate-500 to-slate-950 shadow-[0_35px_70px_rgba(0,0,0,0.55)] [transform:rotateX(62deg)_rotateZ(-27deg)]">
+                      <div className="relative h-[250px] w-[420px] max-w-full rounded-[18px] border border-slate-400/50 bg-gradient-to-br from-slate-300 via-slate-500 to-slate-950 shadow-[0_35px_70px_rgba(0,0,0,0.55)] [transform:rotateX(62deg)_rotateZ(-27deg)]">
                         <div className="absolute inset-0 rounded-[18px] bg-[radial-gradient(circle_at_40%_30%,rgba(255,255,255,0.28),transparent_30%)]" />
                         <div className="absolute left-1/2 top-1/2 flex h-20 w-20 -translate-x-1/2 -translate-y-1/2 items-center justify-center rounded-full bg-black/20 text-slate-200 backdrop-blur-sm">
                           <VisualIcon className="h-12 w-12" strokeWidth={1.7} />
@@ -153,15 +146,23 @@ export default async function ProductDetailPage({
               </div>
             </div>
 
-            <div className="pt-2">
-              <h1 className="section-title text-balance text-[52px] font-semibold leading-[1.06] tracking-[-0.05em] text-[#0f2c56]">
+            <div className="max-w-[500px] pt-0.5 lg:ml-auto">
+              <p className="text-xs font-medium uppercase tracking-[0.18em] text-slate-500">
+                Sản phẩm
+              </p>
+              <h1 className="mt-2 text-balance text-[26px] font-semibold leading-[1.18] tracking-[-0.045em] text-[#0f172a] md:max-w-[420px] md:text-[31px]">
                 {product.name}
               </h1>
-              <p className="mt-4 max-w-[680px] text-[17px] leading-8 text-slate-500">
-                {product.shortDescription ?? "Gói dịch vụ bản quyền được tuyển chọn cho nhu cầu làm việc và sáng tạo chuyên nghiệp."}
+              <p className="mt-2.5 text-sm text-slate-500">
+                Mã sản phẩm: <span className="font-semibold text-slate-700">{product.slug}</span>
               </p>
+              {product.shortDescription ? (
+                <p className="mt-2.5 max-w-[460px] text-[14px] leading-6 text-slate-500">
+                  {product.shortDescription}
+                </p>
+              ) : null}
 
-              <div className="mt-10">
+              <div className="mt-4">
                 <BuyPanel variants={product.variants} productName={product.name} />
               </div>
             </div>

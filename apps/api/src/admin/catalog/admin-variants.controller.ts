@@ -13,6 +13,7 @@ const FIELDS = [
   "name",
   "slug",
   "price",
+  "discountPercent",
   "durationDays",
   "fulfillmentType",
   "warrantyDays",

@@ -23,7 +23,7 @@ export class CatalogService {
         category: { select: { id: true, name: true, slug: true } },
         variants: {
           where: { status: { in: ["active", "out_of_stock"] } },
-          select: { id: true, name: true, price: true, fulfillmentType: true, status: true },
+          select: { id: true, name: true, price: true, discountPercent: true, fulfillmentType: true, status: true },
         },
       },
     });
@@ -50,6 +50,7 @@ export class CatalogService {
             name: true,
             slug: true,
             price: true,
+            discountPercent: true,
             durationDays: true,
             fulfillmentType: true,
             warrantyDays: true,

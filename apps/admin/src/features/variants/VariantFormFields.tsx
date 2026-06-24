@@ -18,6 +18,7 @@ export type VariantPayload = {
   name: string;
   slug: string;
   price: number;
+  discountPercent?: number | null;
   durationDays?: number | null;
   fulfillmentType:
     | "CUSTOMER_ACCOUNT_UPGRADE"
@@ -120,6 +121,11 @@ export function ProductVariantFormFields({
           </Form.Item>
         </Col>
         <Col xs={24} md={12}>
+          <Form.Item label="% giảm giá" name="discountPercent">
+            <InputNumber min={0} max={100} style={{ width: "100%" }} />
+          </Form.Item>
+        </Col>
+        <Col xs={24} md={12}>
           <Form.Item label="Số ngày sử dụng" name="durationDays">
             <InputNumber style={{ width: "100%" }} />
           </Form.Item>
@@ -166,21 +172,20 @@ export function ProductVariantFormFields({
           >
             {(fields, { add, remove }, { errors }) => (
               <>
-                <div className="mb-4 flex items-center justify-between gap-3">
-                  <div>
-                    <Typography.Text strong>Các thông tin khách cần nhập</Typography.Text>
-                    <p className="mt-1 text-sm text-slate-500">
-                      Mỗi dòng sẽ hiện thành một ô nhập ở trang mua hàng.
-                    </p>
-                  </div>
-                  <Button
-                    icon={<PlusOutlined />}
-                    type="dashed"
-                    onClick={() => add({ type: "text", required: true })}
-                  >
-                    Thêm ô nhập
-                  </Button>
+                <div className="mb-5">
+                  <Typography.Text strong>Các thông tin khách cần nhập</Typography.Text>
+                  <p className="mt-1 text-sm text-slate-500">
+                    Mỗi dòng sẽ hiện thành một ô nhập ở trang mua hàng.
+                  </p>
                 </div>
+                <Button
+                  className="mb-4"
+                  icon={<PlusOutlined />}
+                  type="dashed"
+                  onClick={() => add({ type: "text", required: true })}
+                >
+                  Thêm ô nhập
+                </Button>
                 <Space direction="vertical" size="middle" style={{ display: "flex" }}>
                   {fields.map((field) => (
                     <div key={field.key} className="rounded-xl border border-slate-200 bg-white p-4">
@@ -230,16 +235,6 @@ export function ProductVariantFormFields({
                   ))}
                 </Space>
                 {errors.length ? <Typography.Text type="danger">{errors[0]}</Typography.Text> : null}
-                {!fields.length ? (
-                  <Button
-                    className="mt-3"
-                    icon={<PlusOutlined />}
-                    type="dashed"
-                    onClick={() => add({ type: "text", required: true })}
-                  >
-                    Thêm ô nhập đầu tiên
-                  </Button>
-                ) : null}
               </>
             )}
           </Form.List>
