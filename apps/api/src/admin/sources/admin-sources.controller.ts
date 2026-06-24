@@ -62,16 +62,26 @@ export class AdminSourcesController {
     if (ids) where.id = { in: ids };
     if (filter.status) where.status = filter.status;
     if (filter.q) where.name = { contains: String(filter.q), mode: "insensitive" };
-    const [data, total] = await Promise.all([
+    const [rows, total] = await Promise.all([
       this.prisma.supplySource.findMany({ where, skip, take, orderBy }),
       this.prisma.supplySource.count({ where }),
     ]);
+    const data = rows.map((row) => ({
+      ...row,
+      integrityWarnings: this.integrity.getSupplySourceWarnings(),
+    }));
     return { data, total };
   }
 
   @Get(":id")
   async getOne(@Param("id") id: string) {
-    return { data: await this.prisma.supplySource.findUniqueOrThrow({ where: { id } }) };
+    const row = await this.prisma.supplySource.findUniqueOrThrow({ where: { id } });
+    return {
+      data: {
+        ...row,
+        integrityWarnings: this.integrity.getSupplySourceWarnings(),
+      },
+    };
   }
 
   @Post()

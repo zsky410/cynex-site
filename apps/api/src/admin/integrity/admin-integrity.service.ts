@@ -1,10 +1,187 @@
 import { Injectable } from "@nestjs/common";
 import { PrismaService } from "../../prisma/prisma.service";
-import { BlockingDependency, DeletePreflightResult } from "./integrity.types";
+import { BlockingDependency, DeletePreflightResult, IntegrityWarning } from "./integrity.types";
 
 @Injectable()
 export class AdminIntegrityService {
   constructor(private readonly prisma: PrismaService) {}
+
+  getSupplySourceWarnings(): IntegrityWarning[] {
+    return [];
+  }
+
+  getSourceOrderWarnings(row: {
+    sourceId?: string | null;
+    source?: { id: string } | null;
+  }): IntegrityWarning[] {
+    const warnings: IntegrityWarning[] = [];
+
+    if (row.sourceId && row.source === null) {
+      warnings.push({
+        code: "missing_source",
+        message: "Source order references a supply source that no longer exists.",
+        field: "sourceId",
+        relatedResource: "supply_sources",
+        relatedId: row.sourceId,
+      });
+    }
+
+    return warnings;
+  }
+
+  getInventoryAccountWarnings(row: {
+    productVariantId?: string | null;
+    sourceId?: string | null;
+    variant?: { id: string } | null;
+    source?: { id: string } | null;
+  }): IntegrityWarning[] {
+    const warnings: IntegrityWarning[] = [];
+
+    if (row.productVariantId && row.variant === null) {
+      warnings.push({
+        code: "missing_variant",
+        message: "Inventory account references a product variant that no longer exists.",
+        field: "productVariantId",
+        relatedResource: "product_variants",
+        relatedId: row.productVariantId,
+      });
+    }
+
+    if (!row.sourceId) {
+      warnings.push({
+        code: "missing_source",
+        message: "Inventory account is not linked to a supply source.",
+        field: "sourceId",
+        relatedResource: "supply_sources",
+      });
+    } else if (row.source === null) {
+      warnings.push({
+        code: "missing_source",
+        message: "Inventory account references a supply source that no longer exists.",
+        field: "sourceId",
+        relatedResource: "supply_sources",
+        relatedId: row.sourceId,
+      });
+    }
+
+    return warnings;
+  }
+
+  getInventoryKeyWarnings(row: {
+    productVariantId?: string | null;
+    sourceId?: string | null;
+    variant?: { id: string } | null;
+    source?: { id: string } | null;
+  }): IntegrityWarning[] {
+    const warnings: IntegrityWarning[] = [];
+
+    if (row.productVariantId && row.variant === null) {
+      warnings.push({
+        code: "missing_variant",
+        message: "Inventory key references a product variant that no longer exists.",
+        field: "productVariantId",
+        relatedResource: "product_variants",
+        relatedId: row.productVariantId,
+      });
+    }
+
+    if (!row.sourceId) {
+      warnings.push({
+        code: "missing_source",
+        message: "Inventory key is not linked to a supply source.",
+        field: "sourceId",
+        relatedResource: "supply_sources",
+      });
+    } else if (row.source === null) {
+      warnings.push({
+        code: "missing_source",
+        message: "Inventory key references a supply source that no longer exists.",
+        field: "sourceId",
+        relatedResource: "supply_sources",
+        relatedId: row.sourceId,
+      });
+    }
+
+    return warnings;
+  }
+
+  getEmailLogWarnings(row: {
+    userId?: string | null;
+    orderId?: string | null;
+    user?: { id: string } | null;
+    order?: { id: string } | null;
+  }): IntegrityWarning[] {
+    const warnings: IntegrityWarning[] = [];
+
+    if (row.userId && row.user === null) {
+      warnings.push({
+        code: "missing_user",
+        message: "Email log references a user that no longer exists.",
+        field: "userId",
+        relatedResource: "users",
+        relatedId: row.userId,
+      });
+    }
+
+    if (row.orderId && row.order === null) {
+      warnings.push({
+        code: "missing_order",
+        message: "Email log references an order that no longer exists.",
+        field: "orderId",
+        relatedResource: "orders",
+        relatedId: row.orderId,
+      });
+    }
+
+    return warnings;
+  }
+
+  async getAuditLogWarnings(row: {
+    targetType?: string | null;
+    targetId?: string | null;
+  }): Promise<IntegrityWarning[]> {
+    if (!row.targetType || !row.targetId) {
+      return [];
+    }
+
+    if (row.targetType === "order") {
+      const order = await this.prisma.order.findUnique({
+        where: { id: row.targetId },
+        select: { id: true },
+      });
+      if (!order) {
+        return [
+          {
+            code: "missing_order",
+            message: "Audit log references an order that no longer exists.",
+            field: "targetId",
+            relatedResource: "orders",
+            relatedId: row.targetId,
+          },
+        ];
+      }
+    }
+
+    if (row.targetType === "user") {
+      const user = await this.prisma.user.findUnique({
+        where: { id: row.targetId },
+        select: { id: true },
+      });
+      if (!user) {
+        return [
+          {
+            code: "missing_user",
+            message: "Audit log references a user that no longer exists.",
+            field: "targetId",
+            relatedResource: "users",
+            relatedId: row.targetId,
+          },
+        ];
+      }
+    }
+
+    return [];
+  }
 
   async getSupplySourceDeletePreflight(id: string): Promise<DeletePreflightResult> {
     await this.prisma.supplySource.findUniqueOrThrow({

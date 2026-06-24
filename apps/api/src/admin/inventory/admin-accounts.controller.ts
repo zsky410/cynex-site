@@ -42,6 +42,13 @@ function mask<T extends Record<string, any>>(a: T) {
   };
 }
 
+function withIntegrityWarnings<T extends Record<string, any>>(integrity: AdminIntegrityService, row: T) {
+  return {
+    ...mask(row),
+    integrityWarnings: integrity.getInventoryAccountWarnings(row),
+  };
+}
+
 function mapBody(b: Record<string, any>, isCreate: boolean): Record<string, any> {
   const o: Record<string, any> = {};
   for (const k of PLAIN_FIELDS) if (b[k] !== undefined) o[k] = b[k];
@@ -100,13 +107,19 @@ export class AdminAccountsController {
       }),
       this.prisma.inventoryAccount.count({ where }),
     ]);
-    return { data: rows.map(mask), total };
+    return { data: rows.map((row) => withIntegrityWarnings(this.integrity, row)), total };
   }
 
   @Get(":id")
   async getOne(@Param("id") id: string) {
-    const a = await this.prisma.inventoryAccount.findUniqueOrThrow({ where: { id } });
-    return { data: mask(a) };
+    const a = await this.prisma.inventoryAccount.findUniqueOrThrow({
+      where: { id },
+      include: {
+        variant: { select: { id: true, name: true } },
+        source: { select: { id: true, name: true } },
+      },
+    });
+    return { data: withIntegrityWarnings(this.integrity, a) };
   }
 
   @Post()

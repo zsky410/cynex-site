@@ -33,6 +33,13 @@ function mask<T extends Record<string, any>>(k: T) {
   return { ...rest, hasKey: !!keyEncrypted };
 }
 
+function withIntegrityWarnings<T extends Record<string, any>>(integrity: AdminIntegrityService, row: T) {
+  return {
+    ...mask(row),
+    integrityWarnings: integrity.getInventoryKeyWarnings(row),
+  };
+}
+
 function mapBody(b: Record<string, any>, isCreate: boolean): Record<string, any> {
   const o: Record<string, any> = {};
   for (const f of PLAIN_FIELDS) if (b[f] !== undefined) o[f] = b[f];
@@ -82,12 +89,23 @@ export class AdminKeysController {
       }),
       this.prisma.inventoryKey.count({ where }),
     ]);
-    return { data: rows.map(mask), total };
+    return { data: rows.map((row) => withIntegrityWarnings(this.integrity, row)), total };
   }
 
   @Get(":id")
   async getOne(@Param("id") id: string) {
-    return { data: mask(await this.prisma.inventoryKey.findUniqueOrThrow({ where: { id } })) };
+    return {
+      data: withIntegrityWarnings(
+        this.integrity,
+        await this.prisma.inventoryKey.findUniqueOrThrow({
+          where: { id },
+          include: {
+            variant: { select: { id: true, name: true } },
+            source: { select: { id: true, name: true } },
+          },
+        }),
+      ),
+    };
   }
 
   @Post()

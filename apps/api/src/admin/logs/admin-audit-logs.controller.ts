@@ -31,7 +31,7 @@ export class AdminAuditLogsController {
       ];
     }
 
-    const [data, total] = await Promise.all([
+    const [rows, total] = await Promise.all([
       this.prisma.auditLog.findMany({
         where,
         skip,
@@ -40,12 +40,24 @@ export class AdminAuditLogsController {
       }),
       this.prisma.auditLog.count({ where }),
     ]);
+    const data = await Promise.all(
+      rows.map(async (row) => ({
+        ...row,
+        integrityWarnings: await this.integrity.getAuditLogWarnings(row),
+      })),
+    );
     return { data, total };
   }
 
   @Get(":id")
   async getOne(@Param("id") id: string) {
-    return { data: await this.prisma.auditLog.findUniqueOrThrow({ where: { id } }) };
+    const row = await this.prisma.auditLog.findUniqueOrThrow({ where: { id } });
+    return {
+      data: {
+        ...row,
+        integrityWarnings: await this.integrity.getAuditLogWarnings(row),
+      },
+    };
   }
 
   @Delete(":id")

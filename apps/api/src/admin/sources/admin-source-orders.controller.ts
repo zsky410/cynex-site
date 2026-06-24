@@ -35,6 +35,18 @@ function serializeSourceOrder<T extends { sourcePayloadEncrypted?: string | null
   };
 }
 
+function withIntegrityWarnings<
+  T extends { sourcePayloadEncrypted?: string | null; sourceId?: string | null; source?: { id: string } | null },
+>(
+  integrity: AdminIntegrityService,
+  row: T,
+) {
+  return {
+    ...serializeSourceOrder(row),
+    integrityWarnings: integrity.getSourceOrderWarnings(row),
+  };
+}
+
 function throwDeleteBlocked(
   id: string,
   blockingDependencies: BlockingDependency[],
@@ -69,12 +81,12 @@ export class AdminSourceOrdersController {
         skip,
         take,
         orderBy,
-        include: { source: { select: { name: true } } },
+        include: { source: { select: { id: true, name: true } } },
       }),
       this.prisma.sourceOrder.count({ where }),
     ]);
     // Never leak the encrypted payload in list/getOne.
-    const data = rows.map(serializeSourceOrder);
+    const data = rows.map((row) => withIntegrityWarnings(this.integrity, row));
     return { data, total };
   }
 
@@ -82,8 +94,9 @@ export class AdminSourceOrdersController {
   async getOne(@Param("id") id: string) {
     const row = await this.prisma.sourceOrder.findUniqueOrThrow({
       where: { id },
+      include: { source: { select: { id: true, name: true } } },
     });
-    return { data: serializeSourceOrder(row) };
+    return { data: withIntegrityWarnings(this.integrity, row) };
   }
 
   @Post()

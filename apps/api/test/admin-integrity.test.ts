@@ -3,9 +3,13 @@ import assert from "node:assert/strict";
 import { PrismaClient } from "@cynex/db";
 import { ConflictException } from "@nestjs/common";
 import { AdminSourcesController } from "../src/admin/sources/admin-sources.controller";
+import { AdminSourceOrdersController } from "../src/admin/sources/admin-source-orders.controller";
 import { AdminAuditLogsController } from "../src/admin/logs/admin-audit-logs.controller";
 import { AdminEmailLogsController } from "../src/admin/logs/admin-email-logs.controller";
+import { AdminAccountsController } from "../src/admin/inventory/admin-accounts.controller";
+import { AdminKeysController } from "../src/admin/inventory/admin-keys.controller";
 import { AdminIntegrityService } from "../src/admin/integrity/admin-integrity.service";
+import { AdminUsersController } from "../src/admin/users/admin-users.controller";
 
 const prisma = new PrismaClient();
 
@@ -265,4 +269,344 @@ test("deleting an audit log uses integrity preflight and hard-deletes the row", 
   } finally {
     await prisma.auditLog.delete({ where: { id: log.id } }).catch(() => {});
   }
+});
+
+test("touched admin payloads always include integrityWarnings arrays", async () => {
+  const now = Date.now();
+  const source = await prisma.supplySource.create({
+    data: {
+      name: `Warnings Source ${now}`,
+      slug: `warnings-source-${now}`,
+    },
+  });
+
+  const emailUser = await prisma.user.create({
+    data: { email: `integrity-warnings-email-${now}@test.com`, passwordHash: "x" },
+  });
+  const email = await prisma.emailLog.create({
+    data: {
+      userId: emailUser.id,
+      type: "refund",
+      toEmail: emailUser.email,
+      subject: "Warnings check",
+      bodySnapshot: "<p>Warnings check</p>",
+      status: "sent",
+      dedupeKey: `integrity-warnings:${emailUser.id}:${now}`,
+      sentByAdminId: (await prisma.admin.findFirstOrThrow()).id,
+      sentAt: new Date(),
+    },
+  });
+
+  const auditUser = await prisma.user.create({
+    data: { email: `integrity-warnings-audit-${now}@test.com`, passwordHash: "x" },
+  });
+  const auditOrder = await prisma.order.create({
+    data: {
+      orderCode: `WARN${now}`,
+      userId: auditUser.id,
+      totalAmount: 1000,
+      paymentStatus: "paid",
+      fulfillmentStatus: "assigned",
+      paidAt: new Date(),
+    },
+  });
+  const admin = await prisma.admin.findFirstOrThrow();
+  const log = await prisma.auditLog.create({
+    data: {
+      actorType: "admin",
+      actorId: admin.id,
+      action: "ADMIN_REFUND_ORDER",
+      targetType: "order",
+      targetId: auditOrder.id,
+      metadata: { reason: "verify warnings field" },
+    },
+  });
+
+  const integrity = new AdminIntegrityService(prisma as any);
+  const sources = new AdminSourcesController(prisma as any, {} as any, integrity);
+  const emailLogs = new AdminEmailLogsController(prisma as any, integrity);
+  const auditLogs = new AdminAuditLogsController(prisma as any, integrity);
+  const users = new AdminUsersController(prisma as any, {} as any, {} as any);
+
+  try {
+    const sourceList = await sources.list({ filter: JSON.stringify({ q: "Warnings Source" }) });
+    const sourceListRow = sourceList.data.find((row: any) => row.id === source.id);
+    assert.deepEqual(sourceListRow?.integrityWarnings, []);
+
+    const sourceDetail = await sources.getOne(source.id);
+    assert.deepEqual(sourceDetail.data.integrityWarnings, []);
+
+    const emailList = await emailLogs.list({
+      page: "1",
+      perPage: "25",
+      filter: JSON.stringify({ q: "Warnings check" }),
+    });
+    const emailListRow = emailList.data.find((row: any) => row.id === email.id);
+    assert.deepEqual(emailListRow?.integrityWarnings, []);
+
+    const emailDetail = await emailLogs.getOne(email.id);
+    assert.deepEqual(emailDetail.data.integrityWarnings, []);
+
+    await users.delete(auditUser.id);
+
+    const auditList = await auditLogs.list({
+      page: "1",
+      perPage: "25",
+      filter: JSON.stringify({ targetId: log.targetId }),
+    });
+    const auditListRow = auditList.data.find((row: any) => row.id === log.id);
+    assert.deepEqual(auditListRow?.integrityWarnings, [
+      {
+        code: "missing_order",
+        message: "Audit log references an order that no longer exists.",
+        field: "targetId",
+        relatedResource: "orders",
+        relatedId: auditOrder.id,
+      },
+    ]);
+
+    const auditDetail = await auditLogs.getOne(log.id);
+    assert.deepEqual(auditDetail.data.integrityWarnings, [
+      {
+        code: "missing_order",
+        message: "Audit log references an order that no longer exists.",
+        field: "targetId",
+        relatedResource: "orders",
+        relatedId: auditOrder.id,
+      },
+    ]);
+  } finally {
+    await prisma.auditLog.delete({ where: { id: log.id } }).catch(() => {});
+    await prisma.emailLog.delete({ where: { id: email.id } }).catch(() => {});
+    await prisma.user.delete({ where: { id: emailUser.id } }).catch(() => {});
+    await prisma.order.delete({ where: { id: auditOrder.id } }).catch(() => {});
+    await prisma.user.delete({ where: { id: auditUser.id } }).catch(() => {});
+    await prisma.supplySource.delete({ where: { id: source.id } }).catch(() => {});
+  }
+});
+
+test("inventory account and key payloads warn when source is missing through nullable links", async () => {
+  const now = Date.now();
+
+  const category = await prisma.category.create({
+    data: {
+      name: `Integrity Warning Category ${now}`,
+      slug: `integrity-warning-category-${now}`,
+    },
+  });
+  const product = await prisma.product.create({
+    data: {
+      categoryId: category.id,
+      name: `Integrity Warning Product ${now}`,
+      slug: `integrity-warning-product-${now}`,
+      status: "active",
+    },
+  });
+  const variant = await prisma.productVariant.create({
+    data: {
+      productId: product.id,
+      name: `Integrity Warning Variant ${now}`,
+      slug: `integrity-warning-variant-${now}`,
+      price: 1000,
+      fulfillmentType: "LICENSE_KEY",
+      status: "active",
+    },
+  });
+  const account = await prisma.inventoryAccount.create({
+    data: {
+      productVariantId: variant.id,
+      sourceId: null,
+      username: `warning-account-${now}`,
+      passwordEncrypted: "encrypted",
+    },
+  });
+  const key = await prisma.inventoryKey.create({
+    data: {
+      productVariantId: variant.id,
+      sourceId: null,
+      keyEncrypted: "encrypted",
+    },
+  });
+
+  const integrity = new AdminIntegrityService(prisma as any);
+  const accounts = new AdminAccountsController(prisma as any, integrity);
+  const keys = new AdminKeysController(prisma as any, integrity);
+
+  try {
+    const accountList = await accounts.list({
+      page: "1",
+      perPage: "25",
+      filter: JSON.stringify({ productVariantId: variant.id }),
+    });
+    const accountListRow = accountList.data.find((row: any) => row.id === account.id);
+    assert.deepEqual(accountListRow?.integrityWarnings, [
+      {
+        code: "missing_source",
+        message: "Inventory account is not linked to a supply source.",
+        field: "sourceId",
+        relatedResource: "supply_sources",
+      },
+    ]);
+
+    const accountDetail = await accounts.getOne(account.id);
+    assert.deepEqual(accountDetail.data.integrityWarnings, [
+      {
+        code: "missing_source",
+        message: "Inventory account is not linked to a supply source.",
+        field: "sourceId",
+        relatedResource: "supply_sources",
+      },
+    ]);
+
+    const keyList = await keys.list({
+      page: "1",
+      perPage: "25",
+      filter: JSON.stringify({ productVariantId: variant.id }),
+    });
+    const keyListRow = keyList.data.find((row: any) => row.id === key.id);
+    assert.deepEqual(keyListRow?.integrityWarnings, [
+      {
+        code: "missing_source",
+        message: "Inventory key is not linked to a supply source.",
+        field: "sourceId",
+        relatedResource: "supply_sources",
+      },
+    ]);
+
+    const keyDetail = await keys.getOne(key.id);
+    assert.deepEqual(keyDetail.data.integrityWarnings, [
+      {
+        code: "missing_source",
+        message: "Inventory key is not linked to a supply source.",
+        field: "sourceId",
+        relatedResource: "supply_sources",
+      },
+    ]);
+  } finally {
+    await prisma.inventoryKey.delete({ where: { id: key.id } }).catch(() => {});
+    await prisma.inventoryAccount.delete({ where: { id: account.id } }).catch(() => {});
+    await prisma.productVariant.delete({ where: { id: variant.id } }).catch(() => {});
+    await prisma.product.delete({ where: { id: product.id } }).catch(() => {});
+    await prisma.category.delete({ where: { id: category.id } }).catch(() => {});
+  }
+});
+
+test("warning calculators flag broken variant and source links when a loaded relation is missing", async () => {
+  const integrity = new AdminIntegrityService({} as any);
+
+  assert.deepEqual(
+    integrity.getInventoryAccountWarnings({
+      id: "acct-broken",
+      productVariantId: "variant-missing",
+      sourceId: "source-missing",
+      variant: null,
+      source: null,
+    } as any),
+    [
+      {
+        code: "missing_variant",
+        message: "Inventory account references a product variant that no longer exists.",
+        field: "productVariantId",
+        relatedResource: "product_variants",
+        relatedId: "variant-missing",
+      },
+      {
+        code: "missing_source",
+        message: "Inventory account references a supply source that no longer exists.",
+        field: "sourceId",
+        relatedResource: "supply_sources",
+        relatedId: "source-missing",
+      },
+    ],
+  );
+
+  assert.deepEqual(
+    integrity.getInventoryKeyWarnings({
+      id: "key-broken",
+      productVariantId: "variant-missing",
+      sourceId: "source-missing",
+      variant: null,
+      source: null,
+    } as any),
+    [
+      {
+        code: "missing_variant",
+        message: "Inventory key references a product variant that no longer exists.",
+        field: "productVariantId",
+        relatedResource: "product_variants",
+        relatedId: "variant-missing",
+      },
+      {
+        code: "missing_source",
+        message: "Inventory key references a supply source that no longer exists.",
+        field: "sourceId",
+        relatedResource: "supply_sources",
+        relatedId: "source-missing",
+      },
+    ],
+  );
+
+  assert.deepEqual(
+    integrity.getSourceOrderWarnings({
+      id: "source-order-broken",
+      sourceId: "source-missing",
+      source: null,
+    } as any),
+    [
+      {
+        code: "missing_source",
+        message: "Source order references a supply source that no longer exists.",
+        field: "sourceId",
+        relatedResource: "supply_sources",
+        relatedId: "source-missing",
+      },
+    ],
+  );
+});
+
+test("source-order payloads include integrityWarnings arrays from integrity service", async () => {
+  const controller = new AdminSourceOrdersController(
+    {
+      sourceOrder: {
+        findMany: async () => [
+          {
+            id: "source-order-broken",
+            sourceId: "source-missing",
+            sourcePayloadEncrypted: "enc",
+            source: null,
+          },
+        ],
+        count: async () => 1,
+        findUniqueOrThrow: async () => ({
+          id: "source-order-broken",
+          sourceId: "source-missing",
+          sourcePayloadEncrypted: "enc",
+          source: null,
+        }),
+      },
+    } as any,
+    new AdminIntegrityService({} as any),
+  );
+
+  const list = await controller.list({ page: "1", perPage: "25" });
+  assert.deepEqual(list.data[0].integrityWarnings, [
+    {
+      code: "missing_source",
+      message: "Source order references a supply source that no longer exists.",
+      field: "sourceId",
+      relatedResource: "supply_sources",
+      relatedId: "source-missing",
+    },
+  ]);
+
+  const detail = await controller.getOne("source-order-broken");
+  assert.deepEqual(detail.data.integrityWarnings, [
+    {
+      code: "missing_source",
+      message: "Source order references a supply source that no longer exists.",
+      field: "sourceId",
+      relatedResource: "supply_sources",
+      relatedId: "source-missing",
+    },
+  ]);
 });
