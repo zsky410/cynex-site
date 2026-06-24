@@ -8,6 +8,7 @@ import { PrismaService } from "../../prisma/prisma.service";
 import { parseListQuery } from "../common/list-query";
 import { AuditService } from "../../audit/audit.service";
 import { WarrantyReplacementService } from "../../warranty/replace";
+import { FilesService } from "../../files/files.service";
 
 export interface AdminWarrantyMessageInput {
   message?: string;
@@ -29,6 +30,7 @@ const CLOSED_STATUSES = new Set(["resolved", "rejected", "closed"]);
 export class AdminWarrantyService {
   constructor(
     private readonly prisma: PrismaService,
+    private readonly files: FilesService,
     private readonly audit?: AuditService,
     private readonly replacement?: WarrantyReplacementService,
   ) {}
@@ -101,7 +103,7 @@ export class AdminWarrantyService {
     if (!warrantyCase) {
       throw new NotFoundException("Yêu cầu bảo hành không tồn tại");
     }
-    return warrantyCase;
+    return this.enrichWarrantyCase(warrantyCase);
   }
 
   async addMessage(adminId: string, id: string, dto: AdminWarrantyMessageInput) {
@@ -117,6 +119,9 @@ export class AdminWarrantyService {
     }
     if (CLOSED_STATUSES.has(warrantyCase.status)) {
       throw new BadRequestException("Yêu cầu bảo hành đã đóng");
+    }
+    if (dto.attachmentFileIds?.length) {
+      await this.files.assertAdminOwnsFiles(adminId, dto.attachmentFileIds);
     }
 
     await this.prisma.warrantyMessage.create({
@@ -205,5 +210,24 @@ export class AdminWarrantyService {
     }
     await this.replacement?.replaceKey(id, inventoryKeyId, adminId);
     return this.getById(id);
+  }
+
+  private async enrichWarrantyCase<T extends { messages?: Array<{ attachmentFileIds?: unknown }> }>(warrantyCase: T) {
+    if (!warrantyCase.messages?.length) return warrantyCase;
+    const messages = await Promise.all(
+      warrantyCase.messages.map(async (message) => {
+        const attachmentFileIds = Array.isArray(message.attachmentFileIds)
+          ? message.attachmentFileIds.filter((value): value is string => typeof value === "string" && value.length > 0)
+          : [];
+        return {
+          ...message,
+          attachments: await this.files.resolveFilesForAdmin(attachmentFileIds),
+        };
+      }),
+    );
+    return {
+      ...warrantyCase,
+      messages,
+    };
   }
 }

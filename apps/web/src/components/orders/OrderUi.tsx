@@ -20,6 +20,10 @@ import {
   FULFILLMENT_STATUS_LABEL,
   PAYMENT_STATUS_LABEL,
 } from "@/lib/status";
+import {
+  formatDateTimeVN,
+  formatTimelineDateTimeVN,
+} from "@/lib/date-time";
 import { cn, formatVnd } from "@/lib/utils";
 
 export function OrderPageLayout({
@@ -123,9 +127,6 @@ export function OrderTimeline({
   fulfillmentStatus: string;
   paymentStatus: string;
 }) {
-  const fmt = (iso: string) =>
-    new Date(iso).toLocaleString("vi-VN", { day: "2-digit", month: "short", hour: "2-digit", minute: "2-digit" });
-
   const paid =
     paymentStatus === "paid" || paymentStatus === "refunded" || !!paidAt;
   const processing = ["paid_waiting_admin", "processing", "assigned", "delivered"].includes(fulfillmentStatus);
@@ -174,7 +175,7 @@ export function OrderTimeline({
                 {step.label}
               </p>
               {step.at && step.done && (
-                <p className="mt-0.5 text-xs text-slate-400">{fmt(step.at)}</p>
+                <p className="mt-0.5 text-xs text-slate-400">{formatTimelineDateTimeVN(step.at)}</p>
               )}
             </div>
           </li>
@@ -303,7 +304,7 @@ export function OrderMetaLine({
 }) {
   return (
     <p className="text-xs text-slate-400">
-      #{orderCode} · {new Date(createdAt).toLocaleString("vi-VN")} · {itemCount} sản phẩm
+      #{orderCode} · {formatDateTimeVN(createdAt)} · {itemCount} sản phẩm
     </p>
   );
 }

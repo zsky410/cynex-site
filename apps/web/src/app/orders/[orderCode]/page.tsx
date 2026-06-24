@@ -15,6 +15,7 @@ import {
   formatOrderTitle,
 } from "@/components/orders/OrderUi";
 import { apiFetch, ApiError } from "@/lib/api";
+import { formatDateTimeVN } from "@/lib/date-time";
 import { formatVnd } from "@/lib/utils";
 
 interface Item {
@@ -76,7 +77,7 @@ export default function OrderDetailPage({ params }: { params: Promise<{ orderCod
       title={formatOrderTitle(order.orderCode)}
       subtitle={
         <>
-          Ngày tạo: {new Date(order.createdAt).toLocaleString("vi-VN")} · <PaymentMeta paymentStatus={order.paymentStatus} />
+          Ngày tạo: {formatDateTimeVN(order.createdAt)} · <PaymentMeta paymentStatus={order.paymentStatus} />
         </>
       }
       badge={<OrderStatusBadge status={order.fulfillmentStatus} />}

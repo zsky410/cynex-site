@@ -134,6 +134,7 @@ CREATE TABLE "product_variants" (
     "name" TEXT NOT NULL,
     "slug" TEXT NOT NULL,
     "price" INTEGER NOT NULL,
+    "discountPercent" INTEGER,
     "costEstimate" INTEGER,
     "durationDays" INTEGER,
     "fulfillmentType" "FulfillmentType" NOT NULL,

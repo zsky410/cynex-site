@@ -1,7 +1,7 @@
 import { Button, Form, Input, Select } from "antd";
 import type { ColumnsType } from "antd/es/table";
 import { useEffect, useMemo, useState } from "react";
-import { useNavigate, useSearchParams } from "react-router-dom";
+import { useSearchParams } from "react-router-dom";
 import { AsyncState } from "../../components/common/AsyncState";
 import { FilterBar } from "../../components/common/FilterBar";
 import { PageHeader } from "../../components/common/PageHeader";
@@ -13,6 +13,7 @@ import { StatusTag } from "../../components/common/StatusTag";
 import { listResource } from "../../lib/admin-api";
 import { getDisplayLabel } from "../../lib/display-labels";
 import { labels } from "../../lib/labels";
+import { VariantModal } from "./VariantModal";
 
 type VariantRecord = {
   id: string;
@@ -34,13 +35,15 @@ const statusOptions = ["active", "inactive", "out_of_stock", "archived"].map((va
 }));
 
 export default function VariantListPage() {
-  const navigate = useNavigate();
   const [searchParams, setSearchParams] = useSearchParams();
   const [form] = Form.useForm<VariantFilterForm>();
   const [rows, setRows] = useState<VariantRecord[]>([]);
   const [total, setTotal] = useState(0);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
+  const [modalVariantId, setModalVariantId] = useState<string | null>(null);
+  const [modalOpen, setModalOpen] = useState(false);
+  const [reloadKey, setReloadKey] = useState(0);
 
   const page = Number(searchParams.get("page") ?? "1");
   const perPage = Number(searchParams.get("perPage") ?? "25");
@@ -72,7 +75,7 @@ export default function VariantListPage() {
       })
       .catch((err: Error) => setError(err.message))
       .finally(() => setLoading(false));
-  }, [page, perPage, currentStatus, currentQuery]);
+  }, [page, perPage, currentStatus, currentQuery, reloadKey]);
 
   const columns = useMemo<ColumnsType<VariantRecord>>(
     () => [
@@ -95,13 +98,16 @@ export default function VariantListPage() {
         title: labels.actions,
         key: "actions",
         render: (_, record) => (
-          <Button type="link" onClick={() => navigate(`/shell/variants/${record.id}/edit`)}>
+          <Button type="link" onClick={() => {
+            setModalVariantId(record.id);
+            setModalOpen(true);
+          }}>
             {labels.edit}
           </Button>
         ),
       },
     ],
-    [navigate],
+    [],
   );
 
   const { deleting, deleteSelected } = useBulkDelete({
@@ -131,7 +137,10 @@ export default function VariantListPage() {
         title={labels.variants}
         subtitle="Biến thể vẫn dùng nguyên contract danh sách và field fulfillment hiện có."
         extra={
-          <Button type="primary" onClick={() => navigate("/shell/variants/new")}>
+          <Button type="primary" onClick={() => {
+            setModalVariantId(null);
+            setModalOpen(true);
+          }}>
             {labels.create}
           </Button>
         }
@@ -182,7 +191,10 @@ export default function VariantListPage() {
               <StandardBulkActions<VariantRecord>
                 selectedRows={selection.selectedRows}
                 onClear={selection.clearSelection}
-                onEdit={(row) => navigate(`/shell/variants/${row.id}/edit`)}
+                onEdit={(row) => {
+                  setModalVariantId(row.id);
+                  setModalOpen(true);
+                }}
                 onDelete={deleteSelected}
                 deleting={deleting}
               />
@@ -190,6 +202,12 @@ export default function VariantListPage() {
           }}
         />
       </AsyncState>
+      <VariantModal
+        open={modalOpen}
+        variantId={modalVariantId}
+        onClose={() => setModalOpen(false)}
+        onSaved={() => setReloadKey((current) => current + 1)}
+      />
     </>
   );
 }

@@ -7,7 +7,14 @@ interface ProductCard {
   name: string;
   slug: string;
   shortDescription?: string | null;
-  imageFileId?: string | null;
+  image?: {
+    id: string;
+    fileName: string;
+    mimeType: string;
+    size: number;
+    publicUrl?: string | null;
+    contentPath: string;
+  } | null;
   category?: {
     id: string;
     name: string;

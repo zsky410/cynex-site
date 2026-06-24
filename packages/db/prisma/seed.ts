@@ -10,12 +10,17 @@ loadDotenv();
 const prisma = new PrismaClient();
 
 async function main(): Promise<void> {
-  const superAdminEmail = "admin@cynex.local";
-  const passwordHash = await argon2.hash("admin12345");
+  const superAdminEmail = "contact.cynex@gmail.com";
+  const passwordHash = await argon2.hash("Giabao@#1504@@");
 
   await prisma.admin.upsert({
     where: { email: superAdminEmail },
-    update: {},
+    update: {
+      passwordHash,
+      role: "super_admin",
+      isActive: true,
+      name: "Super Admin",
+    },
     create: {
       email: superAdminEmail,
       passwordHash,
@@ -71,10 +76,9 @@ async function main(): Promise<void> {
       name: "Spotify Premium - Acc dùng chung - 1 tháng",
       slug: "spotify-premium-shared-1m",
       price: 35000,
-      costEstimate: 15000,
+      discountPercent: 20,
       durationDays: 30,
       fulfillmentType: "SHARED_ACCOUNT",
-      defaultSourceId: cynexSource.id,
       warrantyDays: 30,
       estimatedDeliveryMinutes: 30,
       status: "active",
@@ -89,10 +93,9 @@ async function main(): Promise<void> {
       name: "Spotify Premium - Nâng chính chủ - 1 tháng",
       slug: "spotify-premium-upgrade-1m",
       price: 49000,
-      costEstimate: 20000,
+      discountPercent: 25,
       durationDays: 30,
       fulfillmentType: "CUSTOMER_ACCOUNT_UPGRADE",
-      defaultSourceId: cynexSource.id,
       warrantyDays: 30,
       estimatedDeliveryMinutes: 60,
       requiresCustomerInput: true,
@@ -125,10 +128,9 @@ async function main(): Promise<void> {
       name: "Netflix Premium - Profile dùng chung - 1 tháng",
       slug: "netflix-shared-1m",
       price: 65000,
-      costEstimate: 30000,
+      discountPercent: 15,
       durationDays: 30,
       fulfillmentType: "SHARED_ACCOUNT",
-      defaultSourceId: cynexSource.id,
       warrantyDays: 7,
       estimatedDeliveryMinutes: 45,
       status: "active",
@@ -157,10 +159,9 @@ async function main(): Promise<void> {
       name: "ChatGPT Plus - 1 tháng",
       slug: "chatgpt-plus-1m",
       price: 350000,
-      costEstimate: 280000,
+      discountPercent: 10,
       durationDays: 30,
       fulfillmentType: "LICENSE_KEY",
-      defaultSourceId: cynexSource.id,
       warrantyDays: 30,
       estimatedDeliveryMinutes: 120,
       status: "active",
@@ -216,7 +217,7 @@ async function main(): Promise<void> {
   });
 
   console.log(
-    "Seed complete: admin@cynex.local / admin12345, 3 products, Cynex source, demo inventory",
+    "Seed complete: contact.cynex@gmail.com / Giabao@#1504@@, 3 products, Cynex source, demo inventory",
   );
 }
 

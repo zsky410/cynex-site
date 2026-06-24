@@ -13,10 +13,11 @@ type ListParams = {
 
 export async function adminFetch<T>(path: string, init: RequestInit = {}) {
   const token = getStoredToken();
+  const isFormData = typeof FormData !== "undefined" && init.body instanceof FormData;
   const response = await fetch(`${API_URL}${path}`, {
     ...init,
     headers: {
-      "Content-Type": "application/json",
+      ...(isFormData ? {} : { "Content-Type": "application/json" }),
       ...(token ? { Authorization: `Bearer ${token}` } : {}),
       ...(init.headers ?? {}),
     },
@@ -87,6 +88,23 @@ export function updateResource<T>(
 export function deleteResource<T>(resource: string, id: string | number) {
   return adminFetch<{ data: T }>(`/admin/${resource}/${id}`, {
     method: "DELETE",
+  });
+}
+
+export function uploadAdminFile(file: File) {
+  const body = new FormData();
+  body.append("file", file);
+  return adminFetch<{
+    id: string;
+    fileName: string;
+    mimeType: string;
+    size: number;
+    storageDriver: string;
+    publicUrl?: string;
+    contentPath: string;
+  }>("/admin/files/upload", {
+    method: "POST",
+    body,
   });
 }
 

@@ -1,7 +1,7 @@
 import { Button, Form, Input, Select } from "antd";
 import type { ColumnsType } from "antd/es/table";
 import { useEffect, useMemo, useState } from "react";
-import { useNavigate, useSearchParams } from "react-router-dom";
+import { useSearchParams } from "react-router-dom";
 import { AsyncState } from "../../components/common/AsyncState";
 import { StandardBulkActions } from "../../components/common/StandardBulkActions";
 import { FilterBar } from "../../components/common/FilterBar";
@@ -13,6 +13,7 @@ import { StatusTag } from "../../components/common/StatusTag";
 import { listResource } from "../../lib/admin-api";
 import { getDisplayLabel } from "../../lib/display-labels";
 import { labels } from "../../lib/labels";
+import { ProductModal } from "./ProductModal";
 
 type ProductRecord = {
   id: string;
@@ -34,13 +35,15 @@ const statusOptions = ["draft", "active", "inactive", "archived"].map((value) =>
 }));
 
 export default function ProductListPage() {
-  const navigate = useNavigate();
   const [searchParams, setSearchParams] = useSearchParams();
   const [form] = Form.useForm<ProductFilterForm>();
   const [rows, setRows] = useState<ProductRecord[]>([]);
   const [total, setTotal] = useState(0);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
+  const [modalProductId, setModalProductId] = useState<string | null>(null);
+  const [modalOpen, setModalOpen] = useState(false);
+  const [reloadKey, setReloadKey] = useState(0);
 
   const page = Number(searchParams.get("page") ?? "1");
   const perPage = Number(searchParams.get("perPage") ?? "25");
@@ -73,7 +76,7 @@ export default function ProductListPage() {
       })
       .catch((err: Error) => setError(err.message))
       .finally(() => setLoading(false));
-  }, [page, perPage, currentStatus, currentQuery]);
+  }, [page, perPage, currentStatus, currentQuery, reloadKey]);
 
   const columns = useMemo<ColumnsType<ProductRecord>>(
     () => [
@@ -90,13 +93,16 @@ export default function ProductListPage() {
         title: labels.actions,
         key: "actions",
         render: (_, record) => (
-          <Button type="link" onClick={() => navigate(`/shell/products/${record.id}/edit`)}>
+          <Button type="link" onClick={() => {
+            setModalProductId(record.id);
+            setModalOpen(true);
+          }}>
             {labels.edit}
           </Button>
         ),
       },
     ],
-    [navigate],
+    [],
   );
 
   const { deleting, deleteSelected } = useBulkDelete({
@@ -124,7 +130,10 @@ export default function ProductListPage() {
         title={labels.products}
         subtitle="Giữ nguyên contract danh sách sản phẩm hiện tại, với bộ lọc và chỉnh sửa theo shell Ant Design."
         extra={
-          <Button type="primary" onClick={() => navigate("/shell/products/new")}>
+          <Button type="primary" onClick={() => {
+            setModalProductId(null);
+            setModalOpen(true);
+          }}>
             {labels.create}
           </Button>
         }
@@ -181,7 +190,10 @@ export default function ProductListPage() {
               <StandardBulkActions<ProductRecord>
                 selectedRows={selection.selectedRows}
                 onClear={selection.clearSelection}
-                onEdit={(row) => navigate(`/shell/products/${row.id}/edit`)}
+                onEdit={(row) => {
+                  setModalProductId(row.id);
+                  setModalOpen(true);
+                }}
                 onDelete={deleteSelected}
                 deleting={deleting}
               />
@@ -189,6 +201,12 @@ export default function ProductListPage() {
           }}
         />
       </AsyncState>
+      <ProductModal
+        open={modalOpen}
+        productId={modalProductId}
+        onClose={() => setModalOpen(false)}
+        onSaved={() => setReloadKey((current) => current + 1)}
+      />
     </>
   );
 }

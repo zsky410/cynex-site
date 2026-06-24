@@ -1,20 +1,21 @@
-import { Body, Controller, Delete, Get, Param, Patch, Post, Query, UseGuards } from "@nestjs/common";
+import { Body, ConflictException, Controller, Delete, Get, Param, Patch, Post, Query, UseGuards } from "@nestjs/common";
 import { AuditAction } from "@cynex/shared";
 import { AdminAuthGuard } from "../../auth/guards";
 import { CurrentAdmin, AuthAdmin } from "../../common/current-user.decorator";
 import { AuditService } from "../../audit/audit.service";
 import { PrismaService } from "../../prisma/prisma.service";
 import { parseListQuery } from "../common/list-query";
+import { AdminIntegrityService } from "../integrity/admin-integrity.service";
+import { type BlockingDependency } from "../integrity/integrity.types";
 
 const FIELDS = [
   "productId",
   "name",
   "slug",
   "price",
-  "costEstimate",
+  "discountPercent",
   "durationDays",
   "fulfillmentType",
-  "defaultSourceId",
   "warrantyDays",
   "estimatedDeliveryMinutes",
   "requiresCustomerInput",
@@ -28,12 +29,22 @@ function pick(body: Record<string, any>): Record<string, any> {
   return out;
 }
 
+function throwDeleteBlocked(id: string, blockingDependencies: BlockingDependency[]): never {
+  throw new ConflictException({
+    message: "Không thể xóa biến thể sản phẩm vì vẫn còn dữ liệu liên kết.",
+    resource: "product_variants",
+    id,
+    blockingDependencies,
+  });
+}
+
 @UseGuards(AdminAuthGuard)
 @Controller("admin/product-variants")
 export class AdminVariantsController {
   constructor(
     private readonly prisma: PrismaService,
     private readonly audit: AuditService,
+    private readonly integrity: AdminIntegrityService,
   ) {}
 
   @Get()
@@ -72,7 +83,13 @@ export class AdminVariantsController {
   }
 
   @Delete(":id")
-  async remove(@Param("id") id: string) {
-    return { data: await this.prisma.productVariant.update({ where: { id }, data: { status: "archived" } }) };
+  async remove(@CurrentAdmin() admin: AuthAdmin, @Param("id") id: string) {
+    const preflight = await this.integrity.getVariantDeletePreflight(id);
+    if (!preflight.canDelete) {
+      throwDeleteBlocked(id, preflight.blockingDependencies);
+    }
+    const deleted = await this.prisma.productVariant.delete({ where: { id } });
+    await this.audit.logAdminAction(admin.id, "ADMIN_DELETE_VARIANT", "product_variant", id);
+    return { data: deleted };
   }
 }

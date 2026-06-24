@@ -3,7 +3,6 @@
 import Link from "next/link";
 import { useState } from "react";
 import {
-  ArrowRight,
   Bot,
   BriefcaseBusiness,
   ChevronDown,
@@ -35,7 +34,14 @@ interface CatalogProduct {
   name: string;
   slug: string;
   shortDescription?: string | null;
-  imageFileId?: string | null;
+  image?: {
+    id: string;
+    fileName: string;
+    mimeType: string;
+    size: number;
+    publicUrl?: string | null;
+    contentPath: string;
+  } | null;
   category?: CatalogCategory | null;
   variants: CatalogVariant[];
 }
@@ -221,22 +227,29 @@ export function ProductsCatalog({
             <Link
               key={product.id}
               href={`/products/${product.slug}`}
-              className="group flex min-h-[258px] flex-col justify-between rounded-[28px] border border-white/80 bg-white p-6 shadow-[0_22px_60px_rgba(15,23,42,0.08)] transition hover:-translate-y-1 hover:shadow-[0_30px_70px_rgba(15,23,42,0.12)]"
+              className="group flex min-h-[296px] flex-col justify-between rounded-[28px] border border-white/80 bg-white p-6 shadow-[0_22px_60px_rgba(15,23,42,0.08)] transition hover:-translate-y-1 hover:shadow-[0_30px_70px_rgba(15,23,42,0.12)]"
             >
               <div>
-                <div className="flex items-start justify-between gap-4">
-                  <span className={cn("flex h-14 w-14 items-center justify-center rounded-[18px] bg-gradient-to-br shadow-sm", meta.tileClass)}>
-                    <Icon className="h-7 w-7 text-sky-700" />
-                  </span>
+                <div className={cn("flex h-36 w-full items-center justify-center overflow-hidden rounded-[24px] bg-gradient-to-br shadow-sm", meta.tileClass)}>
+                  <span className="sr-only">{meta.label}</span>
+                  {product.image?.publicUrl ? (
+                    // eslint-disable-next-line @next/next/no-img-element
+                    <img src={product.image.publicUrl} alt={product.name} className="h-full w-full object-cover" />
+                  ) : (
+                    <Icon className="h-10 w-10 text-sky-700" />
+                  )}
+                </div>
+
+                <div className="mt-5 flex items-start justify-between gap-4">
                   <span className={cn("rounded-full px-3 py-1 text-xs font-medium", meta.chipClass)}>
                     {meta.label}
                   </span>
                 </div>
 
-                <h3 className="mt-6 text-[24px] font-semibold leading-[1.2] tracking-[-0.04em] text-slate-950">
+                <h3 className="mt-4 text-[21px] font-semibold leading-[1.2] tracking-[-0.03em] text-slate-950">
                   {product.name}
                 </h3>
-                <p className="mt-3 line-clamp-3 text-[15px] leading-7 text-slate-500">
+                <p className="mt-2 line-clamp-3 text-[13px] leading-6 text-slate-500">
                   {product.shortDescription ?? "Gói dịch vụ premium được tuyển chọn để tối ưu công việc và giải trí hàng ngày."}
                 </p>
               </div>
@@ -250,8 +263,8 @@ export function ProductsCatalog({
                       <span className="ml-1 font-medium text-slate-400">{cadence}</span>
                     </p>
                   </div>
-                  <span className="flex h-11 w-11 items-center justify-center rounded-full bg-sky-50 text-sky-700 transition group-hover:bg-sky-100">
-                    <ArrowRight className="h-5 w-5" />
+                  <span className="text-sm font-semibold text-sky-700 transition group-hover:text-sky-800">
+                    Xem chi tiết
                   </span>
                 </div>
               </div>

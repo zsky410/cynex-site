@@ -56,7 +56,7 @@ function throwDeleteBlocked(
   blockingDependencies: BlockingDependency[],
 ): never {
   throw new ConflictException({
-    message: "Cannot delete inventory key while dependent records exist.",
+    message: "Không thể xóa key kho vì vẫn còn dữ liệu liên kết.",
     resource: "inventory_keys",
     id,
     blockingDependencies,

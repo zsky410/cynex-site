@@ -17,6 +17,7 @@ import {
 } from "@/components/account/AccountUi";
 import { ChangePasswordForm } from "@/components/account/ChangePasswordForm";
 import { apiFetch, getToken, ApiError } from "@/lib/api";
+import { formatLongDateVN } from "@/lib/date-time";
 import { formatVnd } from "@/lib/utils";
 
 interface MeProfile {
@@ -61,11 +62,7 @@ export default function ProfilePage() {
     );
   }
 
-  const memberSince = new Date(profile.createdAt).toLocaleDateString("vi-VN", {
-    day: "numeric",
-    month: "long",
-    year: "numeric",
-  });
+  const memberSince = formatLongDateVN(profile.createdAt);
 
   return (
     <AccountPageLayout

@@ -10,6 +10,9 @@ import { AdminAccountsController } from "../src/admin/inventory/admin-accounts.c
 import { AdminKeysController } from "../src/admin/inventory/admin-keys.controller";
 import { AdminIntegrityService } from "../src/admin/integrity/admin-integrity.service";
 import { AdminUsersController } from "../src/admin/users/admin-users.controller";
+import { AdminProductsController } from "../src/admin/catalog/admin-products.controller";
+import { AdminVariantsController } from "../src/admin/catalog/admin-variants.controller";
+import { AdminOrdersController } from "../src/admin/orders/admin-orders.controller";
 
 const prisma = new PrismaClient();
 
@@ -53,7 +56,6 @@ test("deleting a supply source is blocked when dependent inventory accounts exis
       slug: `integrity-variant-${now}`,
       price: 1000,
       fulfillmentType: "SHARED_ACCOUNT",
-      defaultSourceId: source.id,
       status: "active",
     },
     select: { id: true },
@@ -124,18 +126,13 @@ test("deleting a supply source is blocked when dependent inventory accounts exis
     assert.equal(preflight.canDelete, false);
     assert.deepEqual(
       preflight.blockingDependencies.map((dependency) => dependency.resource),
-      ["inventory_accounts", "product_variants", "warranty_cases"],
+      ["inventory_accounts", "warranty_cases"],
     );
     assert.deepEqual(preflight.blockingDependencies, [
       {
         resource: "inventory_accounts",
         count: 1,
         sampleIds: [account.id],
-      },
-      {
-        resource: "product_variants",
-        count: 1,
-        sampleIds: [variant.id],
       },
       {
         resource: "warranty_cases",
@@ -147,7 +144,7 @@ test("deleting a supply source is blocked when dependent inventory accounts exis
     await assert.rejects(() => controller.remove(source.id), (error: unknown) => {
       assert.ok(error instanceof ConflictException);
       assert.deepEqual((error as ConflictException).getResponse(), {
-        message: "Cannot delete supply source while dependent records exist.",
+        message: "Không thể xóa nguồn cung vì vẫn còn dữ liệu liên kết.",
         resource: "supply_sources",
         id: source.id,
         blockingDependencies: [
@@ -155,11 +152,6 @@ test("deleting a supply source is blocked when dependent inventory accounts exis
             resource: "inventory_accounts",
             count: 1,
             sampleIds: [account.id],
-          },
-          {
-            resource: "product_variants",
-            count: 1,
-            sampleIds: [variant.id],
           },
           {
             resource: "warranty_cases",
@@ -206,6 +198,453 @@ test("deleting a supply source hard-deletes it when no dependencies exist", asyn
 
   const deleted = await prisma.supplySource.findUnique({ where: { id: source.id } });
   assert.equal(deleted, null);
+});
+
+test("deleting a product is blocked when dependent variants or order items exist", async () => {
+  const now = Date.now();
+  const admin = await prisma.admin.findFirstOrThrow({ select: { id: true } });
+
+  const category = await prisma.category.create({
+    data: {
+      name: `Product Delete Category ${now}`,
+      slug: `product-delete-category-${now}`,
+    },
+  });
+  const product = await prisma.product.create({
+    data: {
+      categoryId: category.id,
+      name: `Product Delete ${now}`,
+      slug: `product-delete-${now}`,
+      status: "active",
+    },
+  });
+  const variant = await prisma.productVariant.create({
+    data: {
+      productId: product.id,
+      name: `Product Delete Variant ${now}`,
+      slug: `product-delete-variant-${now}`,
+      price: 1000,
+      fulfillmentType: "LICENSE_KEY",
+      status: "active",
+    },
+  });
+  const user = await prisma.user.create({
+    data: {
+      email: `product-delete-${now}@test.com`,
+      passwordHash: "x",
+    },
+  });
+  const order = await prisma.order.create({
+    data: {
+      orderCode: `PDEL${now}`,
+      userId: user.id,
+      totalAmount: 1000,
+      paymentStatus: "pending",
+      fulfillmentStatus: "waiting_payment",
+    },
+  });
+  const orderItem = await prisma.orderItem.create({
+    data: {
+      orderId: order.id,
+      productId: product.id,
+      productVariantId: variant.id,
+      quantity: 1,
+      unitPrice: 1000,
+      totalPrice: 1000,
+      fulfillmentType: "LICENSE_KEY",
+      status: "waiting_payment",
+    },
+  });
+
+  const integrity = new AdminIntegrityService(prisma as any);
+  const controller = new AdminProductsController(
+    prisma as any,
+    { logAdminAction: async () => undefined } as any,
+    { assertAdminOwnsFiles: async () => undefined } as any,
+    integrity,
+  );
+
+  try {
+    const preflight = await integrity.getProductDeletePreflight(product.id);
+    assert.equal(preflight.canDelete, false);
+    assert.deepEqual(preflight.blockingDependencies, [
+      {
+        resource: "product_variants",
+        count: 1,
+        sampleIds: [variant.id],
+      },
+      {
+        resource: "order_items",
+        count: 1,
+        sampleIds: [orderItem.id],
+      },
+    ]);
+
+    await assert.rejects(() => controller.remove(admin as any, product.id), (error: unknown) => {
+      assert.ok(error instanceof ConflictException);
+      assert.deepEqual((error as ConflictException).getResponse(), {
+        message: "Không thể xóa sản phẩm vì vẫn còn dữ liệu liên kết.",
+        resource: "products",
+        id: product.id,
+        blockingDependencies: [
+          {
+            resource: "product_variants",
+            count: 1,
+            sampleIds: [variant.id],
+          },
+          {
+            resource: "order_items",
+            count: 1,
+            sampleIds: [orderItem.id],
+          },
+        ],
+      });
+      return true;
+    });
+  } finally {
+    await prisma.order.delete({ where: { id: order.id } }).catch(() => {});
+    await prisma.user.delete({ where: { id: user.id } }).catch(() => {});
+    await prisma.product.delete({ where: { id: product.id } }).catch(() => {});
+    await prisma.category.delete({ where: { id: category.id } }).catch(() => {});
+  }
+});
+
+test("deleting a product hard-deletes it when no dependencies exist", async () => {
+  const now = Date.now();
+  const admin = await prisma.admin.findFirstOrThrow({ select: { id: true } });
+
+  const category = await prisma.category.create({
+    data: {
+      name: `Product Delete Safe Category ${now}`,
+      slug: `product-delete-safe-category-${now}`,
+    },
+  });
+  const product = await prisma.product.create({
+    data: {
+      categoryId: category.id,
+      name: `Product Delete Safe ${now}`,
+      slug: `product-delete-safe-${now}`,
+      status: "active",
+    },
+  });
+
+  const integrity = new AdminIntegrityService(prisma as any);
+  const controller = new AdminProductsController(
+    prisma as any,
+    { logAdminAction: async () => undefined } as any,
+    { assertAdminOwnsFiles: async () => undefined } as any,
+    integrity,
+  );
+
+  try {
+    const result = await controller.remove(admin as any, product.id);
+    assert.equal(result.data.id, product.id);
+
+    const deleted = await prisma.product.findUnique({ where: { id: product.id } });
+    assert.equal(deleted, null);
+  } finally {
+    await prisma.product.delete({ where: { id: product.id } }).catch(() => {});
+    await prisma.category.delete({ where: { id: category.id } }).catch(() => {});
+  }
+});
+
+test("deleting a variant is blocked when dependent inventory or order rows exist", async () => {
+  const now = Date.now();
+  const admin = await prisma.admin.findFirstOrThrow({ select: { id: true } });
+
+  const category = await prisma.category.create({
+    data: {
+      name: `Variant Delete Category ${now}`,
+      slug: `variant-delete-category-${now}`,
+    },
+  });
+  const product = await prisma.product.create({
+    data: {
+      categoryId: category.id,
+      name: `Variant Delete Product ${now}`,
+      slug: `variant-delete-product-${now}`,
+      status: "active",
+    },
+  });
+  const variant = await prisma.productVariant.create({
+    data: {
+      productId: product.id,
+      name: `Variant Delete ${now}`,
+      slug: `variant-delete-${now}`,
+      price: 1000,
+      fulfillmentType: "LICENSE_KEY",
+      status: "active",
+    },
+  });
+  const account = await prisma.inventoryAccount.create({
+    data: {
+      productVariantId: variant.id,
+      sourceId: null,
+      username: `variant-delete-account-${now}`,
+      passwordEncrypted: "encrypted",
+    },
+  });
+  const key = await prisma.inventoryKey.create({
+    data: {
+      productVariantId: variant.id,
+      sourceId: null,
+      keyEncrypted: "encrypted",
+    },
+  });
+
+  const integrity = new AdminIntegrityService(prisma as any);
+  const controller = new AdminVariantsController(
+    prisma as any,
+    { logAdminAction: async () => undefined } as any,
+    integrity,
+  );
+
+  try {
+    const preflight = await integrity.getVariantDeletePreflight(variant.id);
+    assert.equal(preflight.canDelete, false);
+    assert.deepEqual(preflight.blockingDependencies, [
+      {
+        resource: "inventory_accounts",
+        count: 1,
+        sampleIds: [account.id],
+      },
+      {
+        resource: "inventory_keys",
+        count: 1,
+        sampleIds: [key.id],
+      },
+    ]);
+
+    await assert.rejects(() => controller.remove(admin as any, variant.id), (error: unknown) => {
+      assert.ok(error instanceof ConflictException);
+      assert.deepEqual((error as ConflictException).getResponse(), {
+        message: "Không thể xóa biến thể sản phẩm vì vẫn còn dữ liệu liên kết.",
+        resource: "product_variants",
+        id: variant.id,
+        blockingDependencies: [
+          {
+            resource: "inventory_accounts",
+            count: 1,
+            sampleIds: [account.id],
+          },
+          {
+            resource: "inventory_keys",
+            count: 1,
+            sampleIds: [key.id],
+          },
+        ],
+      });
+      return true;
+    });
+  } finally {
+    await prisma.inventoryKey.delete({ where: { id: key.id } }).catch(() => {});
+    await prisma.inventoryAccount.delete({ where: { id: account.id } }).catch(() => {});
+    await prisma.product.delete({ where: { id: product.id } }).catch(() => {});
+    await prisma.category.delete({ where: { id: category.id } }).catch(() => {});
+  }
+});
+
+test("deleting a variant hard-deletes it when no dependencies exist", async () => {
+  const now = Date.now();
+  const admin = await prisma.admin.findFirstOrThrow({ select: { id: true } });
+
+  const category = await prisma.category.create({
+    data: {
+      name: `Variant Delete Safe Category ${now}`,
+      slug: `variant-delete-safe-category-${now}`,
+    },
+  });
+  const product = await prisma.product.create({
+    data: {
+      categoryId: category.id,
+      name: `Variant Delete Safe Product ${now}`,
+      slug: `variant-delete-safe-product-${now}`,
+      status: "active",
+    },
+  });
+  const variant = await prisma.productVariant.create({
+    data: {
+      productId: product.id,
+      name: `Variant Delete Safe ${now}`,
+      slug: `variant-delete-safe-${now}`,
+      price: 1000,
+      fulfillmentType: "LICENSE_KEY",
+      status: "active",
+    },
+  });
+
+  const integrity = new AdminIntegrityService(prisma as any);
+  const controller = new AdminVariantsController(
+    prisma as any,
+    { logAdminAction: async () => undefined } as any,
+    integrity,
+  );
+
+  try {
+    const result = await controller.remove(admin as any, variant.id);
+    assert.equal(result.data.id, variant.id);
+
+    const deleted = await prisma.productVariant.findUnique({ where: { id: variant.id } });
+    assert.equal(deleted, null);
+  } finally {
+    await prisma.product.delete({ where: { id: product.id } }).catch(() => {});
+    await prisma.category.delete({ where: { id: category.id } }).catch(() => {});
+  }
+});
+
+test("deleting an order hard-deletes the row and its dependent child records", async () => {
+  const now = Date.now();
+  const admin = await prisma.admin.findFirstOrThrow({ select: { id: true } });
+
+  const category = await prisma.category.create({
+    data: {
+      name: `Order Delete Category ${now}`,
+      slug: `order-delete-category-${now}`,
+    },
+  });
+  const product = await prisma.product.create({
+    data: {
+      categoryId: category.id,
+      name: `Order Delete Product ${now}`,
+      slug: `order-delete-product-${now}`,
+      status: "active",
+    },
+  });
+  const variant = await prisma.productVariant.create({
+    data: {
+      productId: product.id,
+      name: `Order Delete Variant ${now}`,
+      slug: `order-delete-variant-${now}`,
+      price: 1000,
+      fulfillmentType: "SHARED_ACCOUNT",
+      status: "active",
+    },
+  });
+  const user = await prisma.user.create({
+    data: {
+      email: `order-delete-${now}@test.com`,
+      passwordHash: "x",
+    },
+  });
+  const order = await prisma.order.create({
+    data: {
+      orderCode: `ODEL${now}`,
+      userId: user.id,
+      totalAmount: 1000,
+      paymentStatus: "paid",
+      fulfillmentStatus: "assigned",
+      paidAt: new Date(),
+    },
+  });
+  const orderItem = await prisma.orderItem.create({
+    data: {
+      orderId: order.id,
+      productId: product.id,
+      productVariantId: variant.id,
+      quantity: 1,
+      unitPrice: 1000,
+      totalPrice: 1000,
+      fulfillmentType: "SHARED_ACCOUNT",
+      status: "assigned",
+    },
+  });
+  const account = await prisma.inventoryAccount.create({
+    data: {
+      productVariantId: variant.id,
+      username: `order-delete-account-${now}`,
+      passwordEncrypted: "encrypted",
+    },
+  });
+  const allocation = await prisma.accountAllocation.create({
+    data: {
+      inventoryAccountId: account.id,
+      userId: user.id,
+      orderItemId: orderItem.id,
+    },
+  });
+  const key = await prisma.inventoryKey.create({
+    data: {
+      productVariantId: variant.id,
+      keyEncrypted: "encrypted",
+      soldOrderItemId: orderItem.id,
+    },
+  });
+  const payment = await prisma.payment.create({
+    data: {
+      paymentCode: `PAY${now}`,
+      orderId: order.id,
+      userId: user.id,
+      amount: 1000,
+      provider: "manual",
+      status: "paid",
+      paidAt: new Date(),
+    },
+  });
+  const email = await prisma.emailLog.create({
+    data: {
+      userId: user.id,
+      orderId: order.id,
+      type: "payment_confirmed",
+      toEmail: user.email,
+      subject: "Order delete cleanup",
+      bodySnapshot: "<p>cleanup</p>",
+      status: "sent",
+      dedupeKey: `order-delete-email:${order.id}:${now}`,
+      sentByAdminId: admin.id,
+      sentAt: new Date(),
+    },
+  });
+  const warrantyCase = await prisma.warrantyCase.create({
+    data: {
+      userId: user.id,
+      orderId: order.id,
+      orderItemId: orderItem.id,
+      reason: "cannot_login",
+    },
+  });
+
+  const integrity = new AdminIntegrityService(prisma as any);
+  const controller = new AdminOrdersController(
+    prisma as any,
+    integrity,
+    { logAdminAction: async () => undefined } as any,
+  );
+
+  try {
+    const preflight = await integrity.getOrderDeletePreflight(order.id);
+    assert.equal(preflight.canDelete, true);
+    assert.deepEqual(preflight.blockingDependencies, []);
+
+    const result = await controller.remove(admin as any, order.id);
+    assert.equal(result.data.id, order.id);
+
+    const [deletedOrder, deletedPayment, deletedEmail, deletedWarranty, deletedAllocation, resetKey] = await Promise.all([
+      prisma.order.findUnique({ where: { id: order.id } }),
+      prisma.payment.findUnique({ where: { id: payment.id } }),
+      prisma.emailLog.findUnique({ where: { id: email.id } }),
+      prisma.warrantyCase.findUnique({ where: { id: warrantyCase.id } }),
+      prisma.accountAllocation.findUnique({ where: { id: allocation.id } }),
+      prisma.inventoryKey.findUnique({ where: { id: key.id } }),
+    ]);
+
+    assert.equal(deletedOrder, null);
+    assert.equal(deletedPayment, null);
+    assert.equal(deletedEmail, null);
+    assert.equal(deletedWarranty, null);
+    assert.equal(deletedAllocation, null);
+    assert.equal(resetKey?.soldOrderItemId ?? null, null);
+  } finally {
+    await prisma.payment.delete({ where: { id: payment.id } }).catch(() => {});
+    await prisma.emailLog.delete({ where: { id: email.id } }).catch(() => {});
+    await prisma.warrantyCase.delete({ where: { id: warrantyCase.id } }).catch(() => {});
+    await prisma.accountAllocation.delete({ where: { id: allocation.id } }).catch(() => {});
+    await prisma.inventoryKey.delete({ where: { id: key.id } }).catch(() => {});
+    await prisma.inventoryAccount.delete({ where: { id: account.id } }).catch(() => {});
+    await prisma.order.delete({ where: { id: order.id } }).catch(() => {});
+    await prisma.user.delete({ where: { id: user.id } }).catch(() => {});
+    await prisma.product.delete({ where: { id: product.id } }).catch(() => {});
+    await prisma.category.delete({ where: { id: category.id } }).catch(() => {});
+  }
 });
 
 test("deleting an email log hard-deletes the row", async () => {
@@ -586,6 +1025,7 @@ test("source-order payloads include integrityWarnings arrays from integrity serv
       },
     } as any,
     new AdminIntegrityService({} as any),
+    { resolveFilesForAdmin: async () => [] } as any,
   );
 
   const list = await controller.list({ page: "1", perPage: "25" });

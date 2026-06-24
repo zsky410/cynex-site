@@ -248,6 +248,7 @@ model Product {
   shortDescription String?
   description      String?
   imageFileId      String?
+  guideFileIds     Json?
   status           ProductStatus @default(draft)
   sortOrder        Int           @default(0)
   createdAt        DateTime      @default(now())
@@ -267,10 +268,9 @@ model ProductVariant {
   name                     String
   slug                     String          @unique
   price                    Int
-  costEstimate             Int?
+  discountPercent          Int?
   durationDays             Int?
   fulfillmentType          FulfillmentType
-  defaultSourceId          String?
   warrantyDays             Int             @default(0)
   estimatedDeliveryMinutes Int?
   requiresCustomerInput    Boolean         @default(false)
@@ -279,11 +279,10 @@ model ProductVariant {
   createdAt                DateTime        @default(now())
   updatedAt                DateTime        @updatedAt
 
-  product       Product            @relation(fields: [productId], references: [id], onDelete: Cascade)
-  defaultSource SupplySource?      @relation(fields: [defaultSourceId], references: [id])
-  orderItems    OrderItem[]
-  accounts      InventoryAccount[]
-  keys          InventoryKey[]
+  product    Product            @relation(fields: [productId], references: [id], onDelete: Cascade)
+  orderItems OrderItem[]
+  accounts   InventoryAccount[]
+  keys       InventoryKey[]
 
   @@index([productId])
   @@index([status])
@@ -411,7 +410,6 @@ model SupplySource {
   createdAt           DateTime           @default(now())
   updatedAt           DateTime           @updatedAt
 
-  variants      ProductVariant[]
   accounts      InventoryAccount[]
   keys          InventoryKey[]
   sourceOrders  SourceOrder[]
@@ -429,7 +427,7 @@ model SourceOrder {
   cost                   Int?
   status                 SourceOrderStatus @default(not_ordered)
   sourcePayloadEncrypted String?
-  proofFileId            String?
+  proofFileIds           Json?
   note                   String?
   orderedAt              DateTime?
   deliveredAt            DateTime?
