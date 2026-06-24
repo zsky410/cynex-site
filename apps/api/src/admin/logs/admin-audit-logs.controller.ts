@@ -1,12 +1,16 @@
 import { Controller, Delete, Get, Param, Query, UseGuards } from "@nestjs/common";
 import { AdminAuthGuard } from "../../auth/guards";
 import { PrismaService } from "../../prisma/prisma.service";
+import { AdminIntegrityService } from "../integrity/admin-integrity.service";
 import { parseListQuery } from "../common/list-query";
 
 @UseGuards(AdminAuthGuard)
 @Controller("admin/audit-logs")
 export class AdminAuditLogsController {
-  constructor(private readonly prisma: PrismaService) {}
+  constructor(
+    private readonly prisma: PrismaService,
+    private readonly integrity: AdminIntegrityService,
+  ) {}
 
   @Get()
   async list(@Query() q: Record<string, any>) {
@@ -46,6 +50,7 @@ export class AdminAuditLogsController {
 
   @Delete(":id")
   async remove(@Param("id") id: string) {
+    await this.integrity.getAuditLogDeletePreflight(id);
     return { data: await this.prisma.auditLog.delete({ where: { id } }) };
   }
 }

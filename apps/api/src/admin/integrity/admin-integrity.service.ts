@@ -125,6 +125,18 @@ export class AdminIntegrityService {
     };
   }
 
+  async getAuditLogDeletePreflight(id: string): Promise<DeletePreflightResult> {
+    await this.prisma.auditLog.findUniqueOrThrow({
+      where: { id },
+      select: { id: true },
+    });
+
+    return {
+      canDelete: true,
+      blockingDependencies: [],
+    };
+  }
+
   private toBlockingDependency(
     resource: string,
     dependency: { count: number; sampleIds: string[] },

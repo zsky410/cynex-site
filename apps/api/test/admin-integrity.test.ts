@@ -3,6 +3,7 @@ import assert from "node:assert/strict";
 import { PrismaClient } from "@cynex/db";
 import { ConflictException } from "@nestjs/common";
 import { AdminSourcesController } from "../src/admin/sources/admin-sources.controller";
+import { AdminAuditLogsController } from "../src/admin/logs/admin-audit-logs.controller";
 import { AdminEmailLogsController } from "../src/admin/logs/admin-email-logs.controller";
 import { AdminIntegrityService } from "../src/admin/integrity/admin-integrity.service";
 
@@ -232,5 +233,36 @@ test("deleting an email log hard-deletes the row", async () => {
   } finally {
     await prisma.emailLog.delete({ where: { id: email.id } }).catch(() => {});
     await prisma.user.delete({ where: { id: user.id } });
+  }
+});
+
+test("deleting an audit log uses integrity preflight and hard-deletes the row", async () => {
+  const admin = await prisma.admin.findFirstOrThrow();
+  const log = await prisma.auditLog.create({
+    data: {
+      actorType: "admin",
+      actorId: admin.id,
+      action: "ADMIN_REFUND_ORDER",
+      targetType: "order",
+      targetId: `audit-log-delete-${Date.now()}`,
+      metadata: { reason: "cleanup" },
+    },
+  });
+
+  const integrity = new AdminIntegrityService(prisma as any);
+  const controller = new AdminAuditLogsController(prisma as any, integrity);
+
+  try {
+    const preflight = await integrity.getAuditLogDeletePreflight(log.id);
+    assert.equal(preflight.canDelete, true);
+    assert.deepEqual(preflight.blockingDependencies, []);
+
+    const result = await controller.remove(log.id);
+    assert.equal(result.data.id, log.id);
+
+    const deleted = await prisma.auditLog.findUnique({ where: { id: log.id } });
+    assert.equal(deleted, null);
+  } finally {
+    await prisma.auditLog.delete({ where: { id: log.id } }).catch(() => {});
   }
 });
