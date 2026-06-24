@@ -1,4 +1,4 @@
-import { Controller, Get, Param, Query, UseGuards } from "@nestjs/common";
+import { Controller, Delete, Get, Param, Query, UseGuards } from "@nestjs/common";
 import { AdminAuthGuard } from "../../auth/guards";
 import { PrismaService } from "../../prisma/prisma.service";
 import { parseListQuery } from "../common/list-query";
@@ -52,5 +52,10 @@ export class AdminEmailLogsController {
         },
       }),
     };
+  }
+
+  @Delete(":id")
+  async remove(@Param("id") id: string) {
+    return { data: await this.prisma.emailLog.delete({ where: { id } }) };
   }
 }

@@ -1,6 +1,7 @@
 import {
   BadRequestException,
   Body,
+  ConflictException,
   Controller,
   Delete,
   Get,
@@ -12,6 +13,7 @@ import {
 } from "@nestjs/common";
 import { AdminAuthGuard } from "../../auth/guards";
 import { PrismaService } from "../../prisma/prisma.service";
+import { AdminIntegrityService } from "../integrity/admin-integrity.service";
 import { parseListQuery } from "../common/list-query";
 import { encrypt, encryptNullable } from "@cynex/shared";
 
@@ -55,10 +57,25 @@ function mapBody(b: Record<string, any>, isCreate: boolean): Record<string, any>
   return o;
 }
 
+function throwDeleteBlocked(
+  id: string,
+  blockingDependencies: Array<{ resource: string; count: number; sampleIds: string[] }>,
+): never {
+  throw new ConflictException({
+    message: "Cannot delete inventory account while dependent records exist.",
+    resource: "inventory_accounts",
+    id,
+    blockingDependencies,
+  });
+}
+
 @UseGuards(AdminAuthGuard)
 @Controller("admin/inventory-accounts")
 export class AdminAccountsController {
-  constructor(private readonly prisma: PrismaService) {}
+  constructor(
+    private readonly prisma: PrismaService,
+    private readonly integrity: AdminIntegrityService,
+  ) {}
 
   @Get()
   async list(@Query() q: Record<string, any>) {
@@ -109,7 +126,12 @@ export class AdminAccountsController {
 
   @Delete(":id")
   async remove(@Param("id") id: string) {
-    const a = await this.prisma.inventoryAccount.update({ where: { id }, data: { status: "disabled" } });
+    const preflight = await this.integrity.getInventoryAccountDeletePreflight(id);
+    if (!preflight.canDelete) {
+      throwDeleteBlocked(id, preflight.blockingDependencies);
+    }
+
+    const a = await this.prisma.inventoryAccount.delete({ where: { id } });
     return { data: mask(a) };
   }
 }

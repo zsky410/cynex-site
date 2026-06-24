@@ -110,7 +110,7 @@ test("deleting a supply source is blocked when dependent inventory accounts exis
   });
 
   const integrity = new AdminIntegrityService(prisma as any);
-  const controller = new AdminSourcesController(prisma as any, {} as any);
+  const controller = new AdminSourcesController(prisma as any, {} as any, integrity);
 
   try {
     const preflight = await integrity.getSupplySourceDeletePreflight(source.id);
@@ -138,10 +138,32 @@ test("deleting a supply source is blocked when dependent inventory accounts exis
       },
     ]);
 
-    await assert.rejects(
-      () => controller.remove(source.id),
-      (error: unknown) => error instanceof ConflictException,
-    );
+    await assert.rejects(() => controller.remove(source.id), (error: unknown) => {
+      assert.ok(error instanceof ConflictException);
+      assert.deepEqual((error as ConflictException).getResponse(), {
+        message: "Cannot delete supply source while dependent records exist.",
+        resource: "supply_sources",
+        id: source.id,
+        blockingDependencies: [
+          {
+            resource: "inventory_accounts",
+            count: 1,
+            sampleIds: [account.id],
+          },
+          {
+            resource: "product_variants",
+            count: 1,
+            sampleIds: [variant.id],
+          },
+          {
+            resource: "warranty_cases",
+            count: 1,
+            sampleIds: [warrantyCase.id],
+          },
+        ],
+      });
+      return true;
+    });
   } finally {
     await prisma.warrantyCase.delete({ where: { id: warrantyCase.id } }).catch(() => {});
     await prisma.inventoryAccount.delete({ where: { id: account.id } }).catch(() => {});
@@ -153,4 +175,29 @@ test("deleting a supply source is blocked when dependent inventory accounts exis
     await prisma.category.delete({ where: { id: category.id } }).catch(() => {});
     await prisma.supplySource.delete({ where: { id: source.id } }).catch(() => {});
   }
+});
+
+test("deleting a supply source hard-deletes it when no dependencies exist", async () => {
+  const now = Date.now();
+
+  const source = await prisma.supplySource.create({
+    data: {
+      name: `Delete Safe Source ${now}`,
+      slug: `delete-safe-source-${now}`,
+    },
+    select: { id: true },
+  });
+
+  const integrity = new AdminIntegrityService(prisma as any);
+  const controller = new AdminSourcesController(prisma as any, {} as any, integrity);
+
+  const preflight = await integrity.getSupplySourceDeletePreflight(source.id);
+  assert.equal(preflight.canDelete, true);
+  assert.deepEqual(preflight.blockingDependencies, []);
+
+  const result = await controller.remove(source.id);
+  assert.equal(result.data.id, source.id);
+
+  const deleted = await prisma.supplySource.findUnique({ where: { id: source.id } });
+  assert.equal(deleted, null);
 });

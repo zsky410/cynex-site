@@ -1,9 +1,10 @@
-import { Body, Controller, Delete, Get, Param, Patch, Post, Query, UseGuards } from "@nestjs/common";
+import { Body, ConflictException, Controller, Delete, Get, Param, Patch, Post, Query, UseGuards } from "@nestjs/common";
 import { AuditAction } from "@cynex/shared";
 import { AdminAuthGuard } from "../../auth/guards";
 import { CurrentAdmin, AuthAdmin } from "../../common/current-user.decorator";
 import { AuditService } from "../../audit/audit.service";
 import { PrismaService } from "../../prisma/prisma.service";
+import { AdminIntegrityService } from "../integrity/admin-integrity.service";
 import { parseListQuery } from "../common/list-query";
 
 const FIELDS = [
@@ -30,12 +31,27 @@ function pick(b: Record<string, any>): Record<string, any> {
   return o;
 }
 
+function throwDeleteBlocked(
+  resource: string,
+  id: string,
+  message: string,
+  blockingDependencies: Array<{ resource: string; count: number; sampleIds: string[] }>,
+): never {
+  throw new ConflictException({
+    message,
+    resource,
+    id,
+    blockingDependencies,
+  });
+}
+
 @UseGuards(AdminAuthGuard)
 @Controller("admin/supply-sources")
 export class AdminSourcesController {
   constructor(
     private readonly prisma: PrismaService,
     private readonly audit: AuditService,
+    private readonly integrity: AdminIntegrityService,
   ) {}
 
   @Get()
@@ -72,7 +88,23 @@ export class AdminSourcesController {
   }
 
   @Delete(":id")
-  async remove(@Param("id") id: string) {
-    return { data: await this.prisma.supplySource.update({ where: { id }, data: { status: "archived" } }) };
+  async remove(@Param("id") id: string, @CurrentAdmin() admin?: AuthAdmin) {
+    const preflight = await this.integrity.getSupplySourceDeletePreflight(id);
+    if (!preflight.canDelete) {
+      throwDeleteBlocked(
+        "supply_sources",
+        id,
+        "Cannot delete supply source while dependent records exist.",
+        preflight.blockingDependencies,
+      );
+    }
+
+    const data = await this.prisma.supplySource.delete({ where: { id } });
+    if (admin) {
+      await this.audit.logAdminAction(admin.id, AuditAction.ADMIN_UPDATE_SOURCE, "supply_source", id, {
+        action: "hard_delete",
+      });
+    }
+    return { data };
   }
 }

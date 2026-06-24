@@ -1,4 +1,4 @@
-import { Controller, Get, Param, Query, UseGuards } from "@nestjs/common";
+import { Controller, Delete, Get, Param, Query, UseGuards } from "@nestjs/common";
 import { AdminAuthGuard } from "../../auth/guards";
 import { PrismaService } from "../../prisma/prisma.service";
 import { parseListQuery } from "../common/list-query";
@@ -42,5 +42,10 @@ export class AdminAuditLogsController {
   @Get(":id")
   async getOne(@Param("id") id: string) {
     return { data: await this.prisma.auditLog.findUniqueOrThrow({ where: { id } }) };
+  }
+
+  @Delete(":id")
+  async remove(@Param("id") id: string) {
+    return { data: await this.prisma.auditLog.delete({ where: { id } }) };
   }
 }
