@@ -3,12 +3,14 @@ import type { ColumnsType } from "antd/es/table";
 import { useEffect, useMemo, useState } from "react";
 import { useNavigate, useSearchParams } from "react-router-dom";
 import { AsyncState } from "../../components/common/AsyncState";
+import { IntegrityWarningCell } from "../../components/common/IntegrityWarningCell";
 import { PageHeader } from "../../components/common/PageHeader";
 import { ResourceTable } from "../../components/common/ResourceTable";
 import { StandardBulkActions } from "../../components/common/StandardBulkActions";
 import { useBulkDelete } from "../../components/common/useBulkDelete";
 import { useListSelection } from "../../components/common/useListSelection";
 import { StatusTag } from "../../components/common/StatusTag";
+import type { IntegrityWarning } from "../../components/common/IntegrityWarningAlert";
 import { adminFetch, listResource } from "../../lib/admin-api";
 import { getDisplayLabel } from "../../lib/display-labels";
 import { labels } from "../../lib/labels";
@@ -20,6 +22,7 @@ type KeyRecord = {
   hasKey: boolean;
   status: string;
   createdAt: string;
+  integrityWarnings: IntegrityWarning[];
 };
 
 function formatDate(value: string) {
@@ -73,6 +76,7 @@ export default function KeyListPage() {
 
   const columns = useMemo<ColumnsType<KeyRecord>>(
     () => [
+      { title: "", key: "integrityWarnings", width: 44, render: (_, record) => <IntegrityWarningCell integrityWarnings={record.integrityWarnings} /> },
       { title: "Ghi chú công khai", dataIndex: "publicNote", key: "publicNote", render: (value?: string | null) => value || "-" },
       { title: "Có key", dataIndex: "hasKey", key: "hasKey", render: (value: boolean) => value ? "Có" : "Không" },
       { title: labels.status, dataIndex: "status", key: "status", render: (value: string) => <StatusTag status={value} /> },

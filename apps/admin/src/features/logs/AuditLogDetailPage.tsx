@@ -2,6 +2,7 @@ import { Button, Card, Descriptions } from "antd";
 import { useEffect, useState } from "react";
 import { useNavigate, useParams } from "react-router-dom";
 import { AsyncState } from "../../components/common/AsyncState";
+import { IntegrityWarningAlert, type IntegrityWarning } from "../../components/common/IntegrityWarningAlert";
 import { PageHeader } from "../../components/common/PageHeader";
 import { getResource } from "../../lib/admin-api";
 import { getDisplayLabel } from "../../lib/display-labels";
@@ -18,6 +19,7 @@ type AuditLogRecord = {
   userAgent?: string | null;
   metadata?: string | null;
   createdAt: string;
+  integrityWarnings?: IntegrityWarning[];
 };
 
 function formatDate(value: string) {
@@ -45,6 +47,7 @@ export default function AuditLogDetailPage() {
       <AsyncState loading={loading} error={error}>
         {record ? (
           <Card>
+            <IntegrityWarningAlert integrityWarnings={record.integrityWarnings} />
             <Descriptions bordered column={1}>
               <Descriptions.Item label="Hành động">{getDisplayLabel(record.action)}</Descriptions.Item>
               <Descriptions.Item label="Loại actor">{record.actorType || "-"}</Descriptions.Item>

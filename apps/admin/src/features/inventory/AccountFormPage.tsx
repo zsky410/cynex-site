@@ -2,6 +2,7 @@ import { Button, Card, Form, Input, InputNumber, Select, Space } from "antd";
 import { useEffect, useState } from "react";
 import { useNavigate, useParams } from "react-router-dom";
 import { AsyncState } from "../../components/common/AsyncState";
+import { IntegrityWarningAlert, type IntegrityWarning } from "../../components/common/IntegrityWarningAlert";
 import { PageHeader } from "../../components/common/PageHeader";
 import { createResource, getResource, listResource, updateResource } from "../../lib/admin-api";
 import { getDisplayLabel } from "../../lib/display-labels";
@@ -22,7 +23,9 @@ type AccountPayload = {
   maxSlots?: number;
   cost?: number;
   status: string;
+  integrityWarnings?: IntegrityWarning[];
 };
+type AccountRecord = AccountPayload;
 
 const accountTypeOptions = ["dedicated", "shared"].map((value) => ({
   value,
@@ -47,6 +50,7 @@ export default function AccountFormPage() {
   const [loading, setLoading] = useState(true);
   const [saving, setSaving] = useState(false);
   const [error, setError] = useState<string | null>(null);
+  const [record, setRecord] = useState<AccountRecord | null>(null);
 
   useEffect(() => {
     let cancelled = false;
@@ -60,6 +64,7 @@ export default function AccountFormPage() {
         setVariantOptions(variantsResponse.data.map((item) => ({ value: item.id, label: item.name })));
         setSourceOptions(sourcesResponse.data.map((item) => ({ value: item.id, label: item.name })));
         if (accountResponse) {
+          setRecord(accountResponse.data);
           form.setFieldsValue(accountResponse.data);
         } else {
           form.setFieldsValue({ accountType: "dedicated", maxSlots: 1, status: "available" });
@@ -94,14 +99,26 @@ export default function AccountFormPage() {
     }
   }
 
+  const selectedVariantId = Form.useWatch("productVariantId", form);
+  const selectedSourceId = Form.useWatch("sourceId", form);
+  const resolvedVariantOptions =
+    selectedVariantId && !variantOptions.some((option) => option.value === selectedVariantId)
+      ? [{ value: selectedVariantId, label: `Thiếu biến thể (${selectedVariantId})` }, ...variantOptions]
+      : variantOptions;
+  const resolvedSourceOptions =
+    selectedSourceId && !sourceOptions.some((option) => option.value === selectedSourceId)
+      ? [{ value: selectedSourceId, label: `Thiếu nguồn (${selectedSourceId})` }, ...sourceOptions]
+      : sourceOptions;
+
   return (
     <>
       <PageHeader title={`${accountId ? labels.edit : labels.create} ${labels.inventoryAccounts}`} subtitle="Giữ nguyên field nguồn/variant/mật khẩu của tài khoản kho." />
       <AsyncState loading={loading} error={error}>
         <Card>
+          <IntegrityWarningAlert integrityWarnings={record?.integrityWarnings} />
           <Form<AccountPayload> form={form} layout="vertical" onFinish={submit}>
-            <Form.Item label="Biến thể" name="productVariantId" rules={[{ required: true, message: "Chọn biến thể" }]}><Select options={variantOptions} /></Form.Item>
-            <Form.Item label="Nguồn cung" name="sourceId"><Select allowClear options={sourceOptions} /></Form.Item>
+            <Form.Item label="Biến thể" name="productVariantId" rules={[{ required: true, message: "Chọn biến thể" }]}><Select options={resolvedVariantOptions} /></Form.Item>
+            <Form.Item label="Nguồn cung" name="sourceId"><Select allowClear options={resolvedSourceOptions} /></Form.Item>
             <Form.Item label="Tên đăng nhập" name="username" rules={[{ required: true, message: "Nhập tên đăng nhập" }]}><Input /></Form.Item>
             <Form.Item label="Mật khẩu" name="password"><Input.Password /></Form.Item>
             <Form.Item label="Thông tin khôi phục" name="recoveryInfo"><Input /></Form.Item>

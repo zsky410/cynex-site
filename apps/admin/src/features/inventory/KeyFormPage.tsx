@@ -2,6 +2,7 @@ import { Button, Card, Form, Input, InputNumber, Select, Space } from "antd";
 import { useEffect, useState } from "react";
 import { useNavigate, useParams } from "react-router-dom";
 import { AsyncState } from "../../components/common/AsyncState";
+import { IntegrityWarningAlert, type IntegrityWarning } from "../../components/common/IntegrityWarningAlert";
 import { PageHeader } from "../../components/common/PageHeader";
 import { createResource, getResource, listResource, updateResource } from "../../lib/admin-api";
 import { getDisplayLabel } from "../../lib/display-labels";
@@ -17,7 +18,9 @@ type KeyPayload = {
   publicNote?: string;
   cost?: number;
   status: string;
+  integrityWarnings?: IntegrityWarning[];
 };
+type KeyRecord = KeyPayload;
 
 const statusOptions = ["available", "assigned", "delivered", "invalid", "replaced", "refunded"].map((value) => ({
   value,
@@ -33,6 +36,7 @@ export default function KeyFormPage() {
   const [loading, setLoading] = useState(true);
   const [saving, setSaving] = useState(false);
   const [error, setError] = useState<string | null>(null);
+  const [record, setRecord] = useState<KeyRecord | null>(null);
 
   useEffect(() => {
     let cancelled = false;
@@ -46,6 +50,7 @@ export default function KeyFormPage() {
         setVariantOptions(variantsResponse.data.map((item) => ({ value: item.id, label: item.name })));
         setSourceOptions(sourcesResponse.data.map((item) => ({ value: item.id, label: item.name })));
         if (keyResponse) {
+          setRecord(keyResponse.data);
           form.setFieldsValue(keyResponse.data);
         } else {
           form.setFieldsValue({ status: "available" });
@@ -80,14 +85,26 @@ export default function KeyFormPage() {
     }
   }
 
+  const selectedVariantId = Form.useWatch("productVariantId", form);
+  const selectedSourceId = Form.useWatch("sourceId", form);
+  const resolvedVariantOptions =
+    selectedVariantId && !variantOptions.some((option) => option.value === selectedVariantId)
+      ? [{ value: selectedVariantId, label: `Thiếu biến thể (${selectedVariantId})` }, ...variantOptions]
+      : variantOptions;
+  const resolvedSourceOptions =
+    selectedSourceId && !sourceOptions.some((option) => option.value === selectedSourceId)
+      ? [{ value: selectedSourceId, label: `Thiếu nguồn (${selectedSourceId})` }, ...sourceOptions]
+      : sourceOptions;
+
   return (
     <>
       <PageHeader title={`${keyId ? labels.edit : labels.create} ${labels.inventoryKeys}`} subtitle="Giữ nguyên field key/variant/source như giao diện legacy." />
       <AsyncState loading={loading} error={error}>
         <Card>
+          <IntegrityWarningAlert integrityWarnings={record?.integrityWarnings} />
           <Form<KeyPayload> form={form} layout="vertical" onFinish={submit}>
-            <Form.Item label="Biến thể" name="productVariantId" rules={[{ required: true, message: "Chọn biến thể" }]}><Select options={variantOptions} /></Form.Item>
-            <Form.Item label="Nguồn cung" name="sourceId"><Select allowClear options={sourceOptions} /></Form.Item>
+            <Form.Item label="Biến thể" name="productVariantId" rules={[{ required: true, message: "Chọn biến thể" }]}><Select options={resolvedVariantOptions} /></Form.Item>
+            <Form.Item label="Nguồn cung" name="sourceId"><Select allowClear options={resolvedSourceOptions} /></Form.Item>
             <Form.Item label="Key" name="key"><Input.Password /></Form.Item>
             <Form.Item label="Ghi chú công khai" name="publicNote"><Input /></Form.Item>
             <Form.Item label="Chi phí" name="cost"><InputNumber style={{ width: "100%" }} /></Form.Item>

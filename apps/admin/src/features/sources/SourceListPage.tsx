@@ -3,12 +3,14 @@ import type { ColumnsType } from "antd/es/table";
 import { useEffect, useMemo, useState } from "react";
 import { useNavigate, useSearchParams } from "react-router-dom";
 import { AsyncState } from "../../components/common/AsyncState";
+import { IntegrityWarningCell } from "../../components/common/IntegrityWarningCell";
 import { PageHeader } from "../../components/common/PageHeader";
 import { ResourceTable } from "../../components/common/ResourceTable";
 import { StandardBulkActions } from "../../components/common/StandardBulkActions";
 import { useBulkDelete } from "../../components/common/useBulkDelete";
 import { useListSelection } from "../../components/common/useListSelection";
 import { StatusTag } from "../../components/common/StatusTag";
+import type { IntegrityWarning } from "../../components/common/IntegrityWarningAlert";
 import { listResource } from "../../lib/admin-api";
 import { getDisplayLabel } from "../../lib/display-labels";
 import { labels } from "../../lib/labels";
@@ -19,6 +21,7 @@ type SourceRecord = {
   contactChannel?: string | null;
   defaultWarrantyDays?: number | null;
   status: string;
+  integrityWarnings: IntegrityWarning[];
 };
 
 export default function SourceListPage() {
@@ -52,6 +55,7 @@ export default function SourceListPage() {
 
   const columns = useMemo<ColumnsType<SourceRecord>>(
     () => [
+      { title: "", key: "integrityWarnings", width: 44, render: (_, record) => <IntegrityWarningCell integrityWarnings={record.integrityWarnings} /> },
       { title: "Tên nguồn", dataIndex: "name", key: "name" },
       { title: "Kênh liên hệ", dataIndex: "contactChannel", key: "contactChannel", render: (value?: string | null) => getDisplayLabel(value) },
       { title: "Bảo hành mặc định", dataIndex: "defaultWarrantyDays", key: "defaultWarrantyDays", render: (value?: number | null) => value ?? 0 },

@@ -3,12 +3,14 @@ import type { ColumnsType } from "antd/es/table";
 import { useEffect, useMemo, useState } from "react";
 import { useNavigate, useSearchParams } from "react-router-dom";
 import { AsyncState } from "../../components/common/AsyncState";
+import { IntegrityWarningCell } from "../../components/common/IntegrityWarningCell";
 import { PageHeader } from "../../components/common/PageHeader";
 import { ResourceTable } from "../../components/common/ResourceTable";
 import { StandardBulkActions } from "../../components/common/StandardBulkActions";
 import { useBulkDelete } from "../../components/common/useBulkDelete";
 import { useListSelection } from "../../components/common/useListSelection";
 import { StatusTag } from "../../components/common/StatusTag";
+import type { IntegrityWarning } from "../../components/common/IntegrityWarningAlert";
 import { listResource } from "../../lib/admin-api";
 import { labels } from "../../lib/labels";
 
@@ -18,6 +20,7 @@ type SourceOrderRecord = {
   cost?: number | null;
   status: string;
   createdAt: string;
+  integrityWarnings: IntegrityWarning[];
 };
 
 function formatDate(value: string) {
@@ -55,6 +58,7 @@ export default function SourceOrderListPage() {
 
   const columns = useMemo<ColumnsType<SourceOrderRecord>>(
     () => [
+      { title: "", key: "integrityWarnings", width: 44, render: (_, record) => <IntegrityWarningCell integrityWarnings={record.integrityWarnings} /> },
       { title: "Mã tham chiếu ngoài", dataIndex: "externalRef", key: "externalRef", render: (value?: string | null) => value || "-" },
       { title: "Chi phí", dataIndex: "cost", key: "cost", render: (value?: number | null) => value == null ? "-" : `${new Intl.NumberFormat("vi-VN").format(value)}đ` },
       { title: labels.status, dataIndex: "status", key: "status", render: (value: string) => <StatusTag status={value} /> },
