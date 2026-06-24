@@ -12,11 +12,12 @@ export class AdminIntegrityService {
       select: { id: true },
     });
 
-    const [sourceOrders, inventoryAccounts, inventoryKeys, productVariants] = await Promise.all([
+    const [sourceOrders, inventoryAccounts, inventoryKeys, productVariants, warrantyCases] = await Promise.all([
       this.loadDependencyRows("source_orders", this.prisma.sourceOrder, { sourceId: id }),
       this.loadDependencyRows("inventory_accounts", this.prisma.inventoryAccount, { sourceId: id }),
       this.loadDependencyRows("inventory_keys", this.prisma.inventoryKey, { sourceId: id }),
       this.loadDependencyRows("product_variants", this.prisma.productVariant, { defaultSourceId: id }),
+      this.loadDependencyRows("warranty_cases", this.prisma.warrantyCase, { sourceId: id }),
     ]);
 
     const blockingDependencies = [
@@ -24,6 +25,7 @@ export class AdminIntegrityService {
       this.toBlockingDependency("inventory_accounts", inventoryAccounts),
       this.toBlockingDependency("inventory_keys", inventoryKeys),
       this.toBlockingDependency("product_variants", productVariants),
+      this.toBlockingDependency("warranty_cases", warrantyCases),
     ].filter((dependency): dependency is BlockingDependency => dependency !== null);
 
     return {
