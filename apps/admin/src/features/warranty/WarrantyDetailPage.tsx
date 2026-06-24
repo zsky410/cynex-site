@@ -6,6 +6,7 @@ import { AsyncState } from "../../components/common/AsyncState";
 import { PageHeader } from "../../components/common/PageHeader";
 import { StatusTag } from "../../components/common/StatusTag";
 import { adminFetch, getResource } from "../../lib/admin-api";
+import { API_URL } from "../../config";
 import { getDisplayLabel } from "../../lib/display-labels";
 import { labels } from "../../lib/labels";
 import { notifyError, notifySuccess } from "../../lib/notifications";
@@ -16,6 +17,14 @@ type WarrantyMessage = {
   authorId?: string;
   message: string;
   createdAt: string;
+  attachments?: Array<{
+    id: string;
+    fileName: string;
+    mimeType: string;
+    size: number;
+    publicUrl?: string | null;
+    contentPath: string;
+  }>;
 };
 
 type WarrantyRecord = {
@@ -90,6 +99,22 @@ export default function WarrantyDetailPage() {
       { title: "Loại tác giả", dataIndex: "authorType", key: "authorType" },
       { title: "Author ID", dataIndex: "authorId", key: "authorId" },
       { title: "Nội dung", dataIndex: "message", key: "message" },
+      {
+        title: "Tệp đính kèm",
+        key: "attachments",
+        render: (_, record) =>
+          record.attachments?.length ? (
+            <Space direction="vertical" size={0}>
+              {record.attachments.map((file) => (
+                <a key={file.id} href={file.publicUrl || `${API_URL}${file.contentPath}`} target="_blank" rel="noreferrer">
+                  {file.fileName}
+                </a>
+              ))}
+            </Space>
+          ) : (
+            "-"
+          ),
+      },
       { title: "Tạo lúc", dataIndex: "createdAt", key: "createdAt", render: (value: string) => formatDate(value) },
     ],
     [],

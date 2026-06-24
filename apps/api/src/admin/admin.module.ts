@@ -22,8 +22,10 @@ import { AdminEmailLogsController } from "./logs/admin-email-logs.controller";
 import { AdminAuditLogsController } from "./logs/admin-audit-logs.controller";
 import { AdminDashboardController } from "./dashboard/dashboard.controller";
 import { AdminIntegrityService } from "./integrity/admin-integrity.service";
+import { FilesModule } from "../files/files.module";
 
 @Module({
+  imports: [FilesModule],
   controllers: [
     AdminAuthController,
     AdminProductsController,

@@ -105,7 +105,7 @@ export class AdminSourcesController {
       throwDeleteBlocked(
         "supply_sources",
         id,
-        "Cannot delete supply source while dependent records exist.",
+        "Không thể xóa nguồn cung vì vẫn còn dữ liệu liên kết.",
         preflight.blockingDependencies,
       );
     }

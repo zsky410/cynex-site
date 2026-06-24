@@ -5,13 +5,12 @@ import { ShoppingCart, ShieldCheck, Star, WalletCards } from "lucide-react";
 import { useMemo, useState } from "react";
 import { apiFetch, getToken, ApiError } from "@/lib/api";
 import { cn, formatVnd } from "@/lib/utils";
-
-interface Field {
-  name: string;
-  label: string;
-  type?: string;
-  required?: boolean;
-}
+import {
+  getConfiguredCustomerFields,
+  validateCustomerInput,
+  type CustomerInputField,
+} from "./buy-panel-customer-input";
+import { getVariantPrimaryLabel, getVariantSecondaryLabel } from "./buy-panel-labels";
 
 export interface Variant {
   id: string;
@@ -22,7 +21,7 @@ export interface Variant {
   warrantyDays: number;
   estimatedDeliveryMinutes?: number | null;
   requiresCustomerInput: boolean;
-  customerInputSchema?: { fields?: Field[] } | null;
+  customerInputSchema?: { fields?: CustomerInputField[] } | null;
   status: string;
 }
 
@@ -33,22 +32,6 @@ const FULFILLMENT_LABEL: Record<string, string> = {
   LICENSE_KEY: "Key/License",
   MANUAL_DELIVERY: "Giao thủ công",
 };
-
-function deriveDurationLabel(variant: Variant): string {
-  if (variant.durationDays) {
-    if (variant.durationDays >= 360) return `${Math.round(variant.durationDays / 30)} Tháng`;
-    if (variant.durationDays >= 30) return `${Math.round(variant.durationDays / 30)} Tháng`;
-    return `${variant.durationDays} Ngày`;
-  }
-
-  const match = variant.name.match(/(\d+)\s*(tháng|năm|ngày)/i);
-  if (match) {
-    return `${match[1]} ${match[2][0].toUpperCase()}${match[2].slice(1).toLowerCase()}`;
-  }
-
-  if (variant.name.toLowerCase().includes("vĩnh viễn")) return "Vĩnh viễn";
-  return variant.name;
-}
 
 function inferReferencePrice(price: number): number {
   return Math.round(price * 2.82 / 1000) * 1000;
@@ -80,6 +63,7 @@ export function BuyPanel({
   const selected = orderedVariants.find((v) => v.id === selectedId);
   if (!selected) return <p className="text-slate-400">Chưa có gói bán.</p>;
   const activeVariant = selected;
+  const configuredCustomerFields = getConfiguredCustomerFields(activeVariant.customerInputSchema);
 
   async function buy() {
     setError(null);
@@ -88,13 +72,20 @@ export function BuyPanel({
       router.push("/login?next=" + encodeURIComponent(window.location.pathname));
       return;
     }
+    if (activeVariant.requiresCustomerInput) {
+      const validationError = validateCustomerInput(configuredCustomerFields, input);
+      if (validationError) {
+        setError(validationError);
+        return;
+      }
+    }
     setLoading(true);
     try {
       const order = await apiFetch<{ orderCode: string }>("/orders", {
         method: "POST",
         body: JSON.stringify({
-          productVariantId: selected!.id,
-          customerInput: selected!.requiresCustomerInput ? input : undefined,
+          productVariantId: activeVariant.id,
+          customerInput: activeVariant.requiresCustomerInput ? input : undefined,
         }),
       });
       router.push(`/checkout/${order.orderCode}`);
@@ -154,7 +145,8 @@ export function BuyPanel({
         {orderedVariants.map((v, index) => {
           const selectedVariant = v.id === selectedId;
           const soldOut = v.status === "out_of_stock";
-          const durationLabel = deriveDurationLabel(v);
+          const primaryLabel = getVariantPrimaryLabel(v);
+          const secondaryLabel = getVariantSecondaryLabel(v);
           const oldPrice = inferReferencePrice(v.price);
           return (
           <label
@@ -188,9 +180,11 @@ export function BuyPanel({
                   />
                 </span>
                 <span>
-                  <span className="block text-[18px] font-medium tracking-[-0.03em]">{durationLabel}</span>
+                  <span className="block text-[18px] font-medium tracking-[-0.03em]">{primaryLabel}</span>
                   <span className="mt-1 block text-xs text-slate-500">
-                    {FULFILLMENT_LABEL[v.fulfillmentType] ?? v.fulfillmentType}
+                    {[secondaryLabel, FULFILLMENT_LABEL[v.fulfillmentType] ?? v.fulfillmentType]
+                      .filter(Boolean)
+                      .join(" · ")}
                     {v.estimatedDeliveryMinutes ? ` · xử lý ~${v.estimatedDeliveryMinutes} phút` : ""}
                   </span>
                   {selectedVariant && index === 0 ? (
@@ -211,20 +205,28 @@ export function BuyPanel({
         )})}
       </div>
 
-      {selected.requiresCustomerInput && (
+      {activeVariant.requiresCustomerInput && (
         <div className="mt-5 rounded-[20px] border border-slate-200 bg-white p-4 shadow-[0_16px_40px_rgba(15,23,42,0.05)]">
           <p className="text-sm font-medium text-slate-900">Thông tin cần cung cấp</p>
-          {(selected.customerInputSchema?.fields ?? []).map((f) => (
+          {configuredCustomerFields.length ? configuredCustomerFields.map((f) => (
             <div key={f.name} className="mt-3">
-              <label className="text-xs text-slate-500">{f.label}</label>
+              <label className="text-xs text-slate-500">
+                {f.label}
+                {f.required ? <span className="ml-1 text-red-500">*</span> : null}
+              </label>
               <input
                 className="mt-1 w-full rounded-xl border border-slate-200 bg-white px-3 py-3 text-sm text-slate-900 outline-none transition focus:border-sky-300"
-                type={f.type === "email" ? "email" : "text"}
+                type={f.type === "email" || f.type === "password" || f.type === "tel" ? f.type : "text"}
+                placeholder={f.placeholder ?? `Nhập ${f.label.toLowerCase()}`}
                 value={input[f.name] ?? ""}
                 onChange={(e) => setInput({ ...input, [f.name]: e.target.value })}
               />
             </div>
-          ))}
+          )) : (
+            <p className="mt-3 text-sm text-amber-600">
+              Gói này đang thiếu cấu hình thông tin cần nhập. Vui lòng liên hệ hỗ trợ.
+            </p>
+          )}
         </div>
       )}
 

@@ -70,7 +70,7 @@ function throwDeleteBlocked(
   blockingDependencies: BlockingDependency[],
 ): never {
   throw new ConflictException({
-    message: "Cannot delete inventory account while dependent records exist.",
+    message: "Không thể xóa tài khoản kho vì vẫn còn dữ liệu liên kết.",
     resource: "inventory_accounts",
     id,
     blockingDependencies,

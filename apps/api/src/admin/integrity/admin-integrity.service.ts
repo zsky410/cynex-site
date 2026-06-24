@@ -189,11 +189,10 @@ export class AdminIntegrityService {
       select: { id: true },
     });
 
-    const [sourceOrders, inventoryAccounts, inventoryKeys, productVariants, warrantyCases] = await Promise.all([
+    const [sourceOrders, inventoryAccounts, inventoryKeys, warrantyCases] = await Promise.all([
       this.loadDependencyRows(this.prisma.sourceOrder, { sourceId: id }),
       this.loadDependencyRows(this.prisma.inventoryAccount, { sourceId: id }),
       this.loadDependencyRows(this.prisma.inventoryKey, { sourceId: id }),
-      this.loadDependencyRows(this.prisma.productVariant, { defaultSourceId: id }),
       this.loadDependencyRows(this.prisma.warrantyCase, { sourceId: id }),
     ]);
 
@@ -201,8 +200,53 @@ export class AdminIntegrityService {
       this.toBlockingDependency("source_orders", sourceOrders),
       this.toBlockingDependency("inventory_accounts", inventoryAccounts),
       this.toBlockingDependency("inventory_keys", inventoryKeys),
-      this.toBlockingDependency("product_variants", productVariants),
       this.toBlockingDependency("warranty_cases", warrantyCases),
+    ].filter((dependency): dependency is BlockingDependency => dependency !== null);
+
+    return {
+      canDelete: blockingDependencies.length === 0,
+      blockingDependencies,
+    };
+  }
+
+  async getProductDeletePreflight(id: string): Promise<DeletePreflightResult> {
+    await this.prisma.product.findUniqueOrThrow({
+      where: { id },
+      select: { id: true },
+    });
+
+    const [variants, orderItems] = await Promise.all([
+      this.loadDependencyRows(this.prisma.productVariant, { productId: id }),
+      this.loadDependencyRows(this.prisma.orderItem, { productId: id }),
+    ]);
+
+    const blockingDependencies = [
+      this.toBlockingDependency("product_variants", variants),
+      this.toBlockingDependency("order_items", orderItems),
+    ].filter((dependency): dependency is BlockingDependency => dependency !== null);
+
+    return {
+      canDelete: blockingDependencies.length === 0,
+      blockingDependencies,
+    };
+  }
+
+  async getVariantDeletePreflight(id: string): Promise<DeletePreflightResult> {
+    await this.prisma.productVariant.findUniqueOrThrow({
+      where: { id },
+      select: { id: true },
+    });
+
+    const [accounts, keys, orderItems] = await Promise.all([
+      this.loadDependencyRows(this.prisma.inventoryAccount, { productVariantId: id }),
+      this.loadDependencyRows(this.prisma.inventoryKey, { productVariantId: id }),
+      this.loadDependencyRows(this.prisma.orderItem, { productVariantId: id }),
+    ]);
+
+    const blockingDependencies = [
+      this.toBlockingDependency("inventory_accounts", accounts),
+      this.toBlockingDependency("inventory_keys", keys),
+      this.toBlockingDependency("order_items", orderItems),
     ].filter((dependency): dependency is BlockingDependency => dependency !== null);
 
     return {
@@ -263,6 +307,18 @@ export class AdminIntegrityService {
     return {
       canDelete: blockingDependencies.length === 0,
       blockingDependencies,
+    };
+  }
+
+  async getOrderDeletePreflight(id: string): Promise<DeletePreflightResult> {
+    await this.prisma.order.findUniqueOrThrow({
+      where: { id },
+      select: { id: true },
+    });
+
+    return {
+      canDelete: true,
+      blockingDependencies: [],
     };
   }
 

@@ -46,7 +46,22 @@ interface ProductDetail {
   slug: string;
   description?: string | null;
   shortDescription?: string | null;
-  imageFileId?: string | null;
+  image?: {
+    id: string;
+    fileName: string;
+    mimeType: string;
+    size: number;
+    publicUrl?: string | null;
+    contentPath: string;
+  } | null;
+  guideFiles?: Array<{
+    id: string;
+    fileName: string;
+    mimeType: string;
+    size: number;
+    publicUrl?: string | null;
+    contentPath: string;
+  }>;
   category?: {
     id: string;
     name: string;
@@ -99,7 +114,7 @@ export default async function ProductDetailPage({
           </div>
 
           <article className="grid items-start gap-10 py-8 lg:grid-cols-[1fr_0.98fr]">
-            <div className={visual.glowClass + " self-start overflow-hidden rounded-[28px]"}>
+            <div className={(product.image?.publicUrl ? "" : visual.glowClass + " ") + "self-start overflow-hidden rounded-[28px]"}>
               <div className="relative overflow-hidden rounded-[28px]">
                 <div className="absolute left-6 top-6 z-10 flex items-center gap-3">
                   <span className="rounded-full bg-sky-100 px-4 py-2 text-sm font-medium text-sky-700">
@@ -110,19 +125,30 @@ export default async function ProductDetailPage({
 
                 <div
                   className={`
-                  relative flex aspect-square items-center justify-center overflow-hidden
-                  bg-gradient-to-br ${visual.tileClass}
+                  relative flex aspect-[1268/636] min-h-[240px] items-center justify-center overflow-hidden
+                  ${product.image?.publicUrl ? "bg-transparent" : `bg-gradient-to-br ${visual.tileClass}`}
                 `}
                 >
-                  <div className="absolute inset-0 bg-[radial-gradient(circle_at_center,rgba(255,255,255,0.18),transparent_36%)]" />
-                  <div className="absolute inset-0 opacity-30 [background-image:linear-gradient(rgba(255,255,255,0.04)_1px,transparent_1px),linear-gradient(90deg,rgba(255,255,255,0.04)_1px,transparent_1px)] [background-size:32px_32px]" />
-                  <div className="relative h-[250px] w-[480px] max-w-full rounded-[18px] border border-slate-400/50 bg-gradient-to-br from-slate-300 via-slate-500 to-slate-950 shadow-[0_35px_70px_rgba(0,0,0,0.55)] [transform:rotateX(62deg)_rotateZ(-27deg)]">
-                    <div className="absolute inset-0 rounded-[18px] bg-[radial-gradient(circle_at_40%_30%,rgba(255,255,255,0.28),transparent_30%)]" />
-                    <div className="absolute left-1/2 top-1/2 flex h-20 w-20 -translate-x-1/2 -translate-y-1/2 items-center justify-center rounded-full bg-black/20 text-slate-200 backdrop-blur-sm">
-                      <VisualIcon className="h-12 w-12" strokeWidth={1.7} />
-                    </div>
-                    <div className="absolute bottom-5 right-8 h-4 w-4 rounded-full border border-slate-300/50" />
-                  </div>
+                  {product.image?.publicUrl ? (
+                    // eslint-disable-next-line @next/next/no-img-element
+                    <img
+                      src={product.image.publicUrl}
+                      alt={product.name}
+                      className="relative z-[1] h-full w-full rounded-[22px] object-contain"
+                    />
+                  ) : (
+                    <>
+                      <div className="absolute inset-0 bg-[radial-gradient(circle_at_center,rgba(255,255,255,0.18),transparent_36%)]" />
+                      <div className="absolute inset-0 opacity-30 [background-image:linear-gradient(rgba(255,255,255,0.04)_1px,transparent_1px),linear-gradient(90deg,rgba(255,255,255,0.04)_1px,transparent_1px)] [background-size:32px_32px]" />
+                      <div className="relative h-[250px] w-[480px] max-w-full rounded-[18px] border border-slate-400/50 bg-gradient-to-br from-slate-300 via-slate-500 to-slate-950 shadow-[0_35px_70px_rgba(0,0,0,0.55)] [transform:rotateX(62deg)_rotateZ(-27deg)]">
+                        <div className="absolute inset-0 rounded-[18px] bg-[radial-gradient(circle_at_40%_30%,rgba(255,255,255,0.28),transparent_30%)]" />
+                        <div className="absolute left-1/2 top-1/2 flex h-20 w-20 -translate-x-1/2 -translate-y-1/2 items-center justify-center rounded-full bg-black/20 text-slate-200 backdrop-blur-sm">
+                          <VisualIcon className="h-12 w-12" strokeWidth={1.7} />
+                        </div>
+                        <div className="absolute bottom-5 right-8 h-4 w-4 rounded-full border border-slate-300/50" />
+                      </div>
+                    </>
+                  )}
                 </div>
               </div>
             </div>
@@ -159,6 +185,24 @@ export default async function ProductDetailPage({
                     </li>
                   ))}
                 </ol>
+                {product.guideFiles?.length ? (
+                  <div className="mt-5 border-t border-slate-200 pt-4">
+                    <p className="text-sm font-semibold text-slate-800">Tệp hướng dẫn</p>
+                    <div className="mt-2 flex flex-col gap-2">
+                      {product.guideFiles.map((file) => (
+                        <a
+                          key={file.id}
+                          href={file.publicUrl ?? "#"}
+                          target="_blank"
+                          rel="noreferrer"
+                          className="text-sm font-medium text-sky-700 underline"
+                        >
+                          {file.fileName}
+                        </a>
+                      ))}
+                    </div>
+                  </div>
+                ) : null}
               </section>
 
               <section className="rounded-[22px] bg-[#eef5ff] p-6 text-slate-700">

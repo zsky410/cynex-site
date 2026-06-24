@@ -64,14 +64,13 @@ pnpm typecheck                 # PASS
 
 `pnpm -F @cynex/api test` is not fully green in the current local `.env`, but the remaining failures are environment-sensitive and unrelated to the admin integrity slice:
 
-- `apps/api/test/files.test.ts` expects local file storage, but local `.env` currently enables R2 so the service returns `storageDriver = "r2"`.
 - `apps/api/test/refund-email-job.test.ts` fails when `RESEND_API_KEY` is set to a real key whose sender domain is not verified.
 - `apps/api/test/sepay-payment.test.ts` includes a case that expects missing SePay config; it passes when `SEPAY_*` vars are unset/overridden, but not with the current fully populated local SePay config.
 
 Verified by rerunning the failing subset with env overrides:
 
 ```bash
-pnpm --dir apps/api exec env R2_BUCKET= R2_ENDPOINT= R2_ACCESS_KEY_ID= R2_SECRET_ACCESS_KEY= R2_ACCOUNT_ID= RESEND_API_KEY= SEPAY_BANK_NAME= SEPAY_BANK_ACCOUNT= SEPAY_ACCOUNT_HOLDER= node --env-file=/home/obi/Projects/cynexsite/.env --test --test-concurrency=1 --import tsx test/files.test.ts test/refund-email-job.test.ts test/sepay-payment.test.ts
+pnpm --dir apps/api exec env RESEND_API_KEY= SEPAY_BANK_NAME= SEPAY_BANK_ACCOUNT= SEPAY_ACCOUNT_HOLDER= node --env-file=/home/obi/Projects/cynexsite/.env --test --test-concurrency=1 --import tsx test/refund-email-job.test.ts test/sepay-payment.test.ts
 ```
 
 ### Seed credentials
@@ -93,7 +92,7 @@ pnpm --dir apps/api exec env R2_BUCKET= R2_ENDPOINT= R2_ACCESS_KEY_ID= R2_SECRET
    logs to console and returns a fake id so `email_logs` flow is testable without a provider.
 4. **SePay / Resend / R2 config now materially affects test behavior.** SePay QR generation and
    webhook validation require the SePay bank config + webhook secret instead of PayOS keys.
-   File upload switches between local `.data/uploads` and R2 depending on `R2_*`.
+   File upload depends on working `R2_*` config and fails at runtime if R2 is missing.
    Email sending switches between console-dev fallback and real Resend depending on `RESEND_API_KEY`.
    Several tests are therefore env-sensitive unless those vars are overridden in the command.
 5. **pnpm overrides** in root `package.json`: `ioredis@5.10.1` (match BullMQ), and
@@ -268,9 +267,18 @@ The full Phase 5 feature set is now implemented:
      - `POST /files/upload`, `GET /files/:id/content` for authenticated users
      - `POST /admin/files/upload`, `GET /admin/files/:id/content` for admins
    - Storage behavior:
-     - if `R2_ACCESS_KEY_ID`/`R2_SECRET_ACCESS_KEY`/`R2_BUCKET` and endpoint info exist, uploads go to R2
-     - otherwise uploads fall back to local `.data/uploads` so dev/test do not require cloud keys
-   - `apps/api/test/files.test.ts` verifies metadata creation, owner/admin read access, local fallback content, and MIME rejection.
+     - files are stored on Cloudflare R2 only
+     - API can still boot without `R2_*`, but file upload/download endpoints fail at runtime until R2 is configured
+   - File registry now backs:
+     - warranty/support attachments
+     - product primary image
+     - product banner
+     - product guide files
+     - source-order proof files
+   - Admin product/source-order forms can upload files directly to R2 and bind returned `fileId` references into their resource payloads.
+   - Public catalog/product detail payloads now resolve product assets into file descriptors (`publicUrl`, `contentPath`, metadata) so the storefront can render real images and guide links.
+   - Warranty detail payloads for both web/admin now resolve message attachments into file descriptors for open/download actions.
+   - `apps/api/test/files.test.ts` verifies metadata creation, owner/admin read access, missing-R2 runtime failure, and MIME rejection.
    - `apps/web/src/lib/api.ts` now supports multipart upload via `apiUploadFile()` and avoids forcing JSON headers on `FormData`.
    - `apps/web/src/app/orders/[orderCode]/warranty/page.tsx` now exists, so the order-detail warranty link is no longer broken; users can create a warranty/support case and attach image/PDF/text files.
 

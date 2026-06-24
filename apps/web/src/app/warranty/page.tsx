@@ -6,6 +6,8 @@ import { useRouter, useSearchParams } from "next/navigation";
 import { Headphones, MessageSquare, Send } from "lucide-react";
 import { OrderCard, OrderPageLayout } from "@/components/orders/OrderUi";
 import { ApiError, apiFetch, apiUploadFile, getToken } from "@/lib/api";
+import { API_BASE } from "@/lib/config";
+import { formatDateTimeVN } from "@/lib/date-time";
 import { cn } from "@/lib/utils";
 
 const STATUS_LABEL: Record<string, string> = {
@@ -38,6 +40,14 @@ interface WarrantyDetail extends WarrantyListRow {
     authorType: string;
     message: string;
     createdAt: string;
+    attachments?: Array<{
+      id: string;
+      fileName: string;
+      mimeType: string;
+      size: number;
+      publicUrl?: string | null;
+      contentPath: string;
+    }>;
   }[];
 }
 
@@ -146,7 +156,7 @@ function WarrantyCasesClient() {
                 <p className="mt-1 text-xs text-slate-500">Đơn #{item.order.orderCode}</p>
                 <p className="mt-2 text-sm text-sky-800">{STATUS_LABEL[item.status] ?? item.status}</p>
                 <p className="mt-1 text-xs text-slate-400">
-                  {item._count.messages} tin nhắn · {new Date(item.createdAt).toLocaleString("vi-VN")}
+                  {item._count.messages} tin nhắn · {formatDateTimeVN(item.createdAt)}
                 </p>
               </button>
             );
@@ -198,9 +208,24 @@ function WarrantyCasesClient() {
                         <MessageSquare className="h-3.5 w-3.5" />
                         {row.authorType === "admin" ? "Admin" : "Bạn"}
                       </span>
-                      <span>{new Date(row.createdAt).toLocaleString("vi-VN")}</span>
+                      <span>{formatDateTimeVN(row.createdAt)}</span>
                     </div>
                     <p className="whitespace-pre-wrap leading-relaxed text-slate-700">{row.message}</p>
+                    {row.attachments?.length ? (
+                      <div className="mt-3 flex flex-col gap-1">
+                        {row.attachments.map((file) => (
+                          <a
+                            key={file.id}
+                            href={file.publicUrl || `${API_BASE}${file.contentPath}`}
+                            target="_blank"
+                            rel="noreferrer"
+                            className="text-xs font-medium text-sky-700 underline"
+                          >
+                            {file.fileName}
+                          </a>
+                        ))}
+                      </div>
+                    ) : null}
                   </div>
                 ))}
               </div>

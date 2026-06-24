@@ -1,7 +1,7 @@
 import { Button } from "antd";
 import type { ColumnsType } from "antd/es/table";
 import { useEffect, useMemo, useState } from "react";
-import { useNavigate, useSearchParams } from "react-router-dom";
+import { useSearchParams } from "react-router-dom";
 import { AsyncState } from "../../components/common/AsyncState";
 import { IntegrityWarningCell } from "../../components/common/IntegrityWarningCell";
 import { PageHeader } from "../../components/common/PageHeader";
@@ -14,6 +14,7 @@ import type { IntegrityWarning } from "../../components/common/IntegrityWarningA
 import { listResource } from "../../lib/admin-api";
 import { getDisplayLabel } from "../../lib/display-labels";
 import { labels } from "../../lib/labels";
+import { SourceModal } from "./SourceModal";
 
 type SourceRecord = {
   id: string;
@@ -25,12 +26,14 @@ type SourceRecord = {
 };
 
 export default function SourceListPage() {
-  const navigate = useNavigate();
   const [searchParams, setSearchParams] = useSearchParams();
   const [rows, setRows] = useState<SourceRecord[]>([]);
   const [total, setTotal] = useState(0);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
+  const [modalSourceId, setModalSourceId] = useState<string | null>(null);
+  const [modalOpen, setModalOpen] = useState(false);
+  const [reloadKey, setReloadKey] = useState(0);
 
   const page = Number(searchParams.get("page") ?? "1");
   const perPage = Number(searchParams.get("perPage") ?? "25");
@@ -51,7 +54,7 @@ export default function SourceListPage() {
       })
       .catch((err: Error) => setError(err.message))
       .finally(() => setLoading(false));
-  }, [page, perPage]);
+  }, [page, perPage, reloadKey]);
 
   const columns = useMemo<ColumnsType<SourceRecord>>(
     () => [
@@ -60,9 +63,20 @@ export default function SourceListPage() {
       { title: "Kênh liên hệ", dataIndex: "contactChannel", key: "contactChannel", render: (value?: string | null) => getDisplayLabel(value) },
       { title: "Bảo hành mặc định", dataIndex: "defaultWarrantyDays", key: "defaultWarrantyDays", render: (value?: number | null) => value ?? 0 },
       { title: labels.status, dataIndex: "status", key: "status", render: (value: string) => <StatusTag status={value} /> },
-      { title: labels.actions, key: "actions", render: (_, record) => <Button type="link" onClick={() => navigate(`/shell/sources/${record.id}/edit`)}>{labels.edit}</Button> },
+      {
+        title: labels.actions,
+        key: "actions",
+        render: (_, record) => (
+          <Button type="link" onClick={() => {
+            setModalSourceId(record.id);
+            setModalOpen(true);
+          }}>
+            {labels.edit}
+          </Button>
+        ),
+      },
     ],
-    [navigate],
+    [],
   );
 
   const { deleting, deleteSelected } = useBulkDelete({
@@ -80,7 +94,14 @@ export default function SourceListPage() {
       <PageHeader
         title={labels.sources}
         subtitle="Quản lý nguồn cung với đầy đủ field liên hệ và chính sách bảo hành."
-        extra={<Button type="primary" onClick={() => navigate("/shell/sources/new")}>{labels.create}</Button>}
+        extra={
+          <Button type="primary" onClick={() => {
+            setModalSourceId(null);
+            setModalOpen(true);
+          }}>
+            {labels.create}
+          </Button>
+        }
       />
       <AsyncState loading={loading} error={error} empty={!rows.length}>
         <ResourceTable<SourceRecord>
@@ -100,7 +121,10 @@ export default function SourceListPage() {
               <StandardBulkActions<SourceRecord>
                 selectedRows={selection.selectedRows}
                 onClear={selection.clearSelection}
-                onEdit={(row) => navigate(`/shell/sources/${row.id}/edit`)}
+                onEdit={(row) => {
+                  setModalSourceId(row.id);
+                  setModalOpen(true);
+                }}
                 onDelete={deleteSelected}
                 deleting={deleting}
               />
@@ -108,6 +132,12 @@ export default function SourceListPage() {
           }}
         />
       </AsyncState>
+      <SourceModal
+        open={modalOpen}
+        sourceId={modalSourceId}
+        onClose={() => setModalOpen(false)}
+        onSaved={() => setReloadKey((current) => current + 1)}
+      />
     </>
   );
 }

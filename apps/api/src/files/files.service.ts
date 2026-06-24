@@ -2,13 +2,13 @@ import {
   BadRequestException,
   Injectable,
   NotFoundException,
+  ServiceUnavailableException,
 } from "@nestjs/common";
 import { GetObjectCommand, PutObjectCommand, S3Client } from "@aws-sdk/client-s3";
-import { existsSync } from "node:fs";
-import { mkdir, readFile, unlink, writeFile } from "node:fs/promises";
 import path from "node:path";
 import { randomUUID } from "node:crypto";
 import { PrismaService } from "../prisma/prisma.service";
+import type { FileDescriptor } from "./file-descriptor";
 
 type UploadableFile = {
   originalname: string;
@@ -22,6 +22,8 @@ type StoredFile = {
   fileName: string;
   mimeType: string;
 };
+
+type FileActorType = "user" | "admin";
 
 const MAX_FILE_BYTES = 10 * 1024 * 1024;
 const ALLOWED_MIME_TYPES = new Set([
@@ -65,43 +67,62 @@ export class FilesService {
     return { body, fileName: file.fileName, mimeType: file.mimeType };
   }
 
-  async removeLocalFile(storageKey: string) {
-    if (!storageKey) return;
-    await unlink(this.localFilePath(storageKey)).catch(() => undefined);
+  async assertUserOwnsFiles(userId: string, fileIds: string[]) {
+    await this.assertOwnedFiles("user", userId, fileIds);
+  }
+
+  async assertAdminOwnsFiles(adminId: string, fileIds: string[]) {
+    await this.assertOwnedFiles("admin", adminId, fileIds);
+  }
+
+  async resolveFilesForUser(userId: string, fileIds: string[]): Promise<FileDescriptor[]> {
+    return this.resolveFiles({
+      fileIds,
+      where: { uploadedByUserId: userId },
+      contentPathBuilder: (id) => `/files/${id}/content`,
+    });
+  }
+
+  async resolveFilesForAdmin(fileIds: string[]): Promise<FileDescriptor[]> {
+    return this.resolveFiles({
+      fileIds,
+      where: {},
+      contentPathBuilder: (id) => `/admin/files/${id}/content`,
+    });
+  }
+
+  async resolvePublicFiles(fileIds: string[]): Promise<FileDescriptor[]> {
+    return this.resolveFiles({
+      fileIds,
+      where: {},
+      contentPathBuilder: (id) => `/admin/files/${id}/content`,
+    });
   }
 
   private async upload(actorType: "user" | "admin", actorId: string, file: UploadableFile | undefined) {
     validateUpload(file);
+    assertR2Configured();
     const ext = path.extname(file.originalname).toLowerCase();
     const storageKey = `${actorType}/${actorId}/${new Date().toISOString().slice(0, 10)}/${randomUUID()}${ext}`;
-    const driver = r2Enabled() ? "r2" : "local";
-    let publicUrl: string | undefined;
-
-    if (driver === "r2") {
-      const client = r2Client();
-      await client.send(
-        new PutObjectCommand({
-          Bucket: process.env.R2_BUCKET,
-          Key: storageKey,
-          Body: file.buffer,
-          ContentType: file.mimetype,
-        }),
-      );
-      const base = (process.env.R2_PUBLIC_BASE_URL ?? "").trim();
-      publicUrl = base ? `${base.replace(/\/$/, "")}/${storageKey}` : undefined;
-    } else {
-      const target = this.localFilePath(storageKey);
-      await mkdir(path.dirname(target), { recursive: true });
-      await writeFile(target, file.buffer);
-    }
+    const client = r2Client();
+    await client.send(
+      new PutObjectCommand({
+        Bucket: process.env.R2_BUCKET,
+        Key: storageKey,
+        Body: file.buffer,
+        ContentType: file.mimetype,
+      }),
+    );
+    const base = (process.env.R2_PUBLIC_BASE_URL ?? "").trim();
+    const publicUrl = base ? `${base.replace(/\/$/, "")}/${storageKey}` : undefined;
 
     const created = await this.prisma.fileObject.create({
       data: {
         fileName: file.originalname,
         mimeType: file.mimetype,
         size: file.size,
-        storageDriver: driver,
-        storageBucket: driver === "r2" ? process.env.R2_BUCKET : null,
+        storageDriver: "r2",
+        storageBucket: process.env.R2_BUCKET,
         storageKey,
         publicUrl,
         uploadedByUserId: actorType === "user" ? actorId : null,
@@ -126,23 +147,72 @@ export class FilesService {
   }
 
   private async loadBody(driver: string, storageKey: string): Promise<Buffer> {
-    if (driver === "r2") {
-      const client = r2Client();
-      const object = await client.send(
-        new GetObjectCommand({
-          Bucket: process.env.R2_BUCKET,
-          Key: storageKey,
-        }),
-      );
-      const bytes = await object.Body?.transformToByteArray();
-      if (!bytes) throw new NotFoundException("Không thể tải tệp");
-      return Buffer.from(bytes);
+    if (driver !== "r2") {
+      throw new NotFoundException("Tệp không khả dụng trên R2");
     }
-    return readFile(this.localFilePath(storageKey));
+    assertR2Configured();
+    const client = r2Client();
+    const object = await client.send(
+      new GetObjectCommand({
+        Bucket: process.env.R2_BUCKET,
+        Key: storageKey,
+      }),
+    );
+    const bytes = await object.Body?.transformToByteArray();
+    if (!bytes) throw new NotFoundException("Không thể tải tệp");
+    return Buffer.from(bytes);
   }
 
-  private localFilePath(storageKey: string): string {
-    return path.join(repoRoot(), ".data", "uploads", storageKey);
+  private async assertOwnedFiles(actorType: FileActorType, actorId: string, fileIds: string[]) {
+    if (!fileIds.length) return;
+    const where =
+      actorType === "admin"
+        ? { id: { in: fileIds }, uploadedByAdminId: actorId }
+        : { id: { in: fileIds }, uploadedByUserId: actorId };
+    const files = await this.prisma.fileObject.findMany({
+      where,
+      select: { id: true },
+    });
+    if (files.length !== fileIds.length) {
+      throw new BadRequestException("Tệp đính kèm không hợp lệ");
+    }
+  }
+
+  private async resolveFiles(input: {
+    fileIds: string[];
+    where: Record<string, unknown>;
+    contentPathBuilder: (id: string) => string;
+  }): Promise<FileDescriptor[]> {
+    const ids = uniqueIds(input.fileIds);
+    if (!ids.length) return [];
+    const files = await this.prisma.fileObject.findMany({
+      where: {
+        ...input.where,
+        id: { in: ids },
+      },
+      select: {
+        id: true,
+        fileName: true,
+        mimeType: true,
+        size: true,
+        publicUrl: true,
+      },
+    });
+    const byId = new Map(files.map((file) => [file.id, file]));
+    const resolved: FileDescriptor[] = [];
+    for (const id of ids) {
+      const file = byId.get(id);
+      if (!file) continue;
+      resolved.push({
+        id: file.id,
+        fileName: file.fileName,
+        mimeType: file.mimeType,
+        size: file.size,
+        publicUrl: file.publicUrl,
+        contentPath: input.contentPathBuilder(file.id),
+      });
+    }
+    return resolved;
   }
 }
 
@@ -161,13 +231,22 @@ function validateUpload(file: UploadableFile | undefined): asserts file is Uploa
   }
 }
 
-function r2Enabled(): boolean {
+function hasR2Config(): boolean {
   return Boolean(
     process.env.R2_ACCESS_KEY_ID &&
       process.env.R2_SECRET_ACCESS_KEY &&
       process.env.R2_BUCKET &&
       (process.env.R2_ENDPOINT || process.env.R2_ACCOUNT_ID),
   );
+}
+
+function assertR2Configured() {
+  if (hasR2Config()) return;
+  throw new ServiceUnavailableException("R2 chưa được cấu hình đầy đủ");
+}
+
+function uniqueIds(fileIds: string[]) {
+  return Array.from(new Set(fileIds.filter(Boolean)));
 }
 
 let _r2Client: S3Client | null = null;
@@ -185,21 +264,4 @@ function r2Client(): S3Client {
     },
   });
   return _r2Client;
-}
-
-function repoRoot(): string {
-  let current = process.cwd();
-  for (;;) {
-    if (current === path.dirname(current)) {
-      return process.cwd();
-    }
-    if (existsAt(current, "pnpm-workspace.yaml")) {
-      return current;
-    }
-    current = path.dirname(current);
-  }
-}
-
-function existsAt(dir: string, fileName: string): boolean {
-  return existsSync(path.join(dir, fileName));
 }

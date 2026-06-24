@@ -28,11 +28,10 @@ async function makeAdmin(prefix: string) {
   });
 }
 
-test("user upload creates metadata and user/admin can read local fallback content", async () => {
+test("user upload stores metadata on R2 and user/admin can read content", async () => {
   const user = await makeUser("file-user");
   const admin = await makeAdmin("file-admin");
   let fileId: string | undefined;
-  let storageKey: string | undefined;
 
   try {
     const uploaded = await files.uploadForUser(user.id, {
@@ -44,9 +43,11 @@ test("user upload creates metadata and user/admin can read local fallback conten
     fileId = uploaded.id;
 
     const record = await prisma.fileObject.findUniqueOrThrow({ where: { id: fileId } });
-    storageKey = record.storageKey;
     assert.equal(record.uploadedByUserId, user.id);
-    assert.equal(record.storageDriver, "local");
+    assert.equal(record.storageDriver, "r2");
+    assert.equal(record.storageBucket, process.env.R2_BUCKET);
+    assert.equal(Boolean(record.publicUrl), Boolean(process.env.R2_PUBLIC_BASE_URL?.trim()));
+    assert.equal(uploaded.storageDriver, "r2");
 
     const asUser = await files.getForUser(user.id, fileId);
     assert.equal(asUser.mimeType, "text/plain");
@@ -59,9 +60,6 @@ test("user upload creates metadata and user/admin can read local fallback conten
   } finally {
     if (fileId) {
       await prisma.fileObject.delete({ where: { id: fileId } }).catch(() => undefined);
-    }
-    if (storageKey) {
-      await files.removeLocalFile(storageKey);
     }
     await prisma.admin.delete({ where: { id: admin.id } }).catch(() => undefined);
     await prisma.user.delete({ where: { id: user.id } }).catch(() => undefined);
@@ -82,6 +80,43 @@ test("rejects unsupported mime types", async () => {
       /hỗ trợ/i,
     );
   } finally {
+    await prisma.user.delete({ where: { id: user.id } }).catch(() => undefined);
+  }
+});
+
+test("upload requires R2 config but does not need it at app boot", async () => {
+  const user = await makeUser("file-missing-r2");
+  const original = {
+    R2_ACCESS_KEY_ID: process.env.R2_ACCESS_KEY_ID,
+    R2_SECRET_ACCESS_KEY: process.env.R2_SECRET_ACCESS_KEY,
+    R2_BUCKET: process.env.R2_BUCKET,
+    R2_ENDPOINT: process.env.R2_ENDPOINT,
+    R2_ACCOUNT_ID: process.env.R2_ACCOUNT_ID,
+  };
+
+  try {
+    process.env.R2_ACCESS_KEY_ID = "";
+    process.env.R2_SECRET_ACCESS_KEY = "";
+    process.env.R2_BUCKET = "";
+    process.env.R2_ENDPOINT = "";
+    process.env.R2_ACCOUNT_ID = "";
+
+    await assert.rejects(
+      () =>
+        files.uploadForUser(user.id, {
+          originalname: "proof.txt",
+          mimetype: "text/plain",
+          size: Buffer.byteLength("hello world"),
+          buffer: Buffer.from("hello world"),
+        }),
+      /R2 chưa được cấu hình đầy đủ/i,
+    );
+  } finally {
+    process.env.R2_ACCESS_KEY_ID = original.R2_ACCESS_KEY_ID;
+    process.env.R2_SECRET_ACCESS_KEY = original.R2_SECRET_ACCESS_KEY;
+    process.env.R2_BUCKET = original.R2_BUCKET;
+    process.env.R2_ENDPOINT = original.R2_ENDPOINT;
+    process.env.R2_ACCOUNT_ID = original.R2_ACCOUNT_ID;
     await prisma.user.delete({ where: { id: user.id } }).catch(() => undefined);
   }
 });

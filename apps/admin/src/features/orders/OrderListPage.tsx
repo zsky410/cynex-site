@@ -7,6 +7,7 @@ import { FilterBar } from "../../components/common/FilterBar";
 import { PageHeader } from "../../components/common/PageHeader";
 import { ResourceTable } from "../../components/common/ResourceTable";
 import { StandardBulkActions } from "../../components/common/StandardBulkActions";
+import { useBulkDelete } from "../../components/common/useBulkDelete";
 import { useListSelection } from "../../components/common/useListSelection";
 import { StatusTag } from "../../components/common/StatusTag";
 import { listResource } from "../../lib/admin-api";
@@ -135,6 +136,16 @@ export default function OrderListPage() {
     [navigate],
   );
 
+  const { deleting, deleteSelected } = useBulkDelete({
+    resource: "orders",
+    selectedRowKeys: selection.selectedRowKeys,
+    onDeleted: (deletedIds) => {
+      setRows((currentRows) => currentRows.filter((row) => !deletedIds.includes(row.id)));
+      setTotal((currentTotal) => Math.max(0, currentTotal - deletedIds.length));
+      selection.clearSelection();
+    },
+  });
+
   return (
     <>
       <PageHeader
@@ -197,6 +208,8 @@ export default function OrderListPage() {
                 selectedRows={selection.selectedRows}
                 onClear={selection.clearSelection}
                 onView={(row) => navigate(`/shell/orders/${row.id}`)}
+                onDelete={deleteSelected}
+                deleting={deleting}
               />
             ),
           }}

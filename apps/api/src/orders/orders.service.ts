@@ -10,6 +10,7 @@ import { PrismaService } from "../prisma/prisma.service";
 import { WalletService } from "../wallet/wallet.service";
 import { QueueService, EMAIL_JOB } from "../queue/queue.service";
 import { EmailType, decryptNullable, type CreateOrderDto } from "@cynex/shared";
+import { assertValidCustomerInput } from "./customer-input";
 
 @Injectable()
 export class OrdersService {
@@ -37,10 +38,10 @@ export class OrdersService {
       throw new BadRequestException("Gói sản phẩm tạm hết hàng");
     }
     if (variant.requiresCustomerInput) {
-      const ci = dto.customerInput;
-      if (!ci || Object.keys(ci).length === 0) {
-        throw new BadRequestException("Vui lòng nhập thông tin cần thiết cho đơn này");
-      }
+      assertValidCustomerInput(
+        variant.customerInputSchema as { fields?: Array<Record<string, unknown>> } | null | undefined,
+        dto.customerInput,
+      );
     }
 
     const quantity = dto.quantity ?? 1;

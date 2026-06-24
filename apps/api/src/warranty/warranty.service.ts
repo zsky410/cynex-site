@@ -6,10 +6,14 @@ import {
 import type { Prisma } from "@cynex/db";
 import { PrismaService } from "../prisma/prisma.service";
 import type { CreateWarrantyCaseDto, CreateWarrantyMessageDto } from "@cynex/shared";
+import { FilesService } from "../files/files.service";
 
 @Injectable()
 export class WarrantyService {
-  constructor(private readonly prisma: PrismaService) {}
+  constructor(
+    private readonly prisma: PrismaService,
+    private readonly files: FilesService,
+  ) {}
 
   async create(userId: string, dto: CreateWarrantyCaseDto) {
     const item = await this.prisma.orderItem.findFirst({
@@ -78,19 +82,10 @@ export class WarrantyService {
     }
 
     if (dto.attachmentFileIds?.length) {
-      const files = await this.prisma.fileObject.findMany({
-        where: {
-          id: { in: dto.attachmentFileIds },
-          uploadedByUserId: userId,
-        },
-        select: { id: true },
-      });
-      if (files.length !== dto.attachmentFileIds.length) {
-        throw new BadRequestException("Tệp đính kèm không hợp lệ");
-      }
+      await this.files.assertUserOwnsFiles(userId, dto.attachmentFileIds);
     }
 
-    return this.prisma.warrantyCase.create({
+    const created = await this.prisma.warrantyCase.create({
       data: {
         userId,
         orderId: item.orderId,
@@ -115,6 +110,7 @@ export class WarrantyService {
         },
       },
     });
+    return this.enrichWarrantyCase(created, userId);
   }
 
   async list(userId: string) {
@@ -177,7 +173,7 @@ export class WarrantyService {
     if (!warrantyCase) {
       throw new NotFoundException("Yêu cầu bảo hành không tồn tại");
     }
-    return warrantyCase;
+    return this.enrichWarrantyCase(warrantyCase, userId);
   }
 
   async addMessage(userId: string, id: string, dto: CreateWarrantyMessageDto) {
@@ -193,16 +189,7 @@ export class WarrantyService {
     }
 
     if (dto.attachmentFileIds?.length) {
-      const files = await this.prisma.fileObject.findMany({
-        where: {
-          id: { in: dto.attachmentFileIds },
-          uploadedByUserId: userId,
-        },
-        select: { id: true },
-      });
-      if (files.length !== dto.attachmentFileIds.length) {
-        throw new BadRequestException("Tệp đính kèm không hợp lệ");
-      }
+      await this.files.assertUserOwnsFiles(userId, dto.attachmentFileIds);
     }
 
     await this.prisma.warrantyMessage.create({
@@ -223,5 +210,27 @@ export class WarrantyService {
     }
 
     return this.getById(userId, warrantyCase.id);
+  }
+
+  private async enrichWarrantyCase<T extends { messages?: Array<{ attachmentFileIds?: unknown }> }>(
+    warrantyCase: T,
+    userId: string,
+  ) {
+    if (!warrantyCase.messages?.length) return warrantyCase;
+    const messages = await Promise.all(
+      warrantyCase.messages.map(async (message) => {
+        const attachmentFileIds = Array.isArray(message.attachmentFileIds)
+          ? message.attachmentFileIds.filter((value): value is string => typeof value === "string" && value.length > 0)
+          : [];
+        return {
+          ...message,
+          attachments: await this.files.resolveFilesForUser(userId, attachmentFileIds),
+        };
+      }),
+    );
+    return {
+      ...warrantyCase,
+      messages,
+    };
   }
 }

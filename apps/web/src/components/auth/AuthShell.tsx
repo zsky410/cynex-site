@@ -37,7 +37,7 @@ export function AuthShell({
       {footer && <div className="mt-6 text-center text-sm text-slate-600">{footer}</div>}
 
       <p className="mt-10 max-w-md text-center text-xs leading-relaxed text-slate-400">
-        © {new Date().getFullYear()} CYNEX. Hệ sinh thái dịch vụ kỹ thuật số cao cấp.
+        © <span suppressHydrationWarning>{new Date().getFullYear()}</span> CYNEX. Hệ sinh thái dịch vụ kỹ thuật số cao cấp.
         <br />
         Bảo mật thông tin là ưu tiên hàng đầu của chúng tôi.
       </p>

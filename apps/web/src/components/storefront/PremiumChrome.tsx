@@ -243,7 +243,7 @@ export function PremiumFooter() {
 
       <div className="soft-divider border-t">
         <div className="mx-auto flex max-w-[1180px] flex-col gap-3 px-5 py-5 text-xs text-slate-400 sm:flex-row sm:items-center sm:justify-between lg:px-8">
-          <p>© {new Date().getFullYear()} CYNEX. Premium Digital Service Marketplace.</p>
+          <p>© <span suppressHydrationWarning>{new Date().getFullYear()}</span> CYNEX. Premium Digital Service Marketplace.</p>
           <div className="flex gap-5">
             <Link href="/terms">Điều khoản dịch vụ</Link>
             <Link href="/privacy">Chính sách bảo mật</Link>
