@@ -92,33 +92,3 @@ test("admin audit-log viewer lists by action and returns detail", async () => {
     await prisma.auditLog.delete({ where: { id: log.id } });
   }
 });
-
-test("admin email-log delete route hard-deletes a log", async () => {
-  const user = await prisma.user.create({
-    data: { email: `elog-delete-${Date.now()}@test.com`, passwordHash: "x" },
-  });
-  const email = await prisma.emailLog.create({
-    data: {
-      userId: user.id,
-      type: "refund",
-      toEmail: user.email,
-      subject: "Delete me",
-      bodySnapshot: "<p>Delete me</p>",
-      status: "sent",
-      dedupeKey: `elog-delete:${user.id}:${Date.now()}`,
-      sentByAdminId: (await prisma.admin.findFirstOrThrow()).id,
-      sentAt: new Date(),
-    },
-  });
-
-  try {
-    const result = await emailLogs.remove(email.id);
-    assert.equal(result.data.id, email.id);
-
-    const deleted = await prisma.emailLog.findUnique({ where: { id: email.id } });
-    assert.equal(deleted, null);
-  } finally {
-    await prisma.emailLog.delete({ where: { id: email.id } }).catch(() => {});
-    await prisma.user.delete({ where: { id: user.id } });
-  }
-});

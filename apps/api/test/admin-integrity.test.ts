@@ -3,6 +3,7 @@ import assert from "node:assert/strict";
 import { PrismaClient } from "@cynex/db";
 import { ConflictException } from "@nestjs/common";
 import { AdminSourcesController } from "../src/admin/sources/admin-sources.controller";
+import { AdminEmailLogsController } from "../src/admin/logs/admin-email-logs.controller";
 import { AdminIntegrityService } from "../src/admin/integrity/admin-integrity.service";
 
 const prisma = new PrismaClient();
@@ -200,4 +201,36 @@ test("deleting a supply source hard-deletes it when no dependencies exist", asyn
 
   const deleted = await prisma.supplySource.findUnique({ where: { id: source.id } });
   assert.equal(deleted, null);
+});
+
+test("deleting an email log hard-deletes the row", async () => {
+  const user = await prisma.user.create({
+    data: { email: `integrity-email-log-${Date.now()}@test.com`, passwordHash: "x" },
+  });
+  const email = await prisma.emailLog.create({
+    data: {
+      userId: user.id,
+      type: "refund",
+      toEmail: user.email,
+      subject: "Delete me",
+      bodySnapshot: "<p>Delete me</p>",
+      status: "sent",
+      dedupeKey: `integrity-email-log:${user.id}:${Date.now()}`,
+      sentByAdminId: (await prisma.admin.findFirstOrThrow()).id,
+      sentAt: new Date(),
+    },
+  });
+
+  const controller = new AdminEmailLogsController(prisma as any);
+
+  try {
+    const result = await controller.remove(email.id);
+    assert.equal(result.data.id, email.id);
+
+    const deleted = await prisma.emailLog.findUnique({ where: { id: email.id } });
+    assert.equal(deleted, null);
+  } finally {
+    await prisma.emailLog.delete({ where: { id: email.id } }).catch(() => {});
+    await prisma.user.delete({ where: { id: user.id } });
+  }
 });
