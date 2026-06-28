@@ -1,7 +1,7 @@
 const DISPLAY_LABELS: Record<string, string> = {
   draft: "Nháp",
   active: "Hoạt động",
-  inactive: "Tạm ẩn",
+  inactive: "Ẩn",
   archived: "Lưu trữ",
   out_of_stock: "Hết hàng",
   blocked: "Bị chặn",
@@ -54,7 +54,7 @@ const DISPLAY_LABELS: Record<string, string> = {
   dedicated_account: "Tài khoản riêng",
   shared_account: "Tài khoản dùng chung",
   license_key: "Key/License",
-  manual_delivery: "Giao thủ công",
+  manual_delivery: "Khác",
   admin_view_secret: "Admin xem secret",
 };
 

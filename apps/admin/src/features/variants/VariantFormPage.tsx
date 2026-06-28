@@ -38,8 +38,8 @@ export default function VariantFormPage() {
       listResource<ProductOption>("products", {
         page: 1,
         perPage: 100,
-        sort: "sortOrder",
-        order: "ASC",
+        sort: "updatedAt",
+        order: "DESC",
         filter: {},
       }),
       variantId ? getResource<VariantRecord>("product-variants", variantId) : Promise.resolve(null),
@@ -92,7 +92,7 @@ export default function VariantFormPage() {
         await createResource("product-variants", values as unknown as Record<string, unknown>);
         notifySuccess("Đã tạo biến thể");
       }
-      navigate("/shell/variants", { replace: true });
+      navigate("/shell/products", { replace: true });
     } catch (err) {
       notifyError(err instanceof Error ? err.message : "Không thể lưu biến thể");
     } finally {
@@ -113,7 +113,7 @@ export default function VariantFormPage() {
             productOptions={productOptions}
             saving={saving}
             onFinish={submit}
-            onCancel={() => navigate("/shell/variants")}
+            onCancel={() => navigate("/shell/products")}
             onSlugChange={handleSlugChange}
           />
         </Card>

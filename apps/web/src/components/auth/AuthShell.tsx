@@ -1,9 +1,10 @@
 "use client";
 
 import Link from "next/link";
-import { Eye, EyeOff, LayoutGrid } from "lucide-react";
+import { Eye, EyeOff } from "lucide-react";
 import { useState, type InputHTMLAttributes, type ReactNode } from "react";
 import { cn } from "@/lib/utils";
+import { CynexLogo } from "@/components/CynexLogo";
 
 export function AuthShell({
   title,
@@ -18,11 +19,8 @@ export function AuthShell({
 }) {
   return (
     <div className="flex min-h-screen flex-col items-center justify-center px-4 py-10">
-      <Link href="/" className="mb-8 flex items-center gap-2.5 transition hover:opacity-80">
-        <span className="flex h-10 w-10 items-center justify-center rounded-xl bg-sky-100 text-sky-700 shadow-sm">
-          <LayoutGrid className="h-5 w-5" strokeWidth={2.3} />
-        </span>
-        <span className="text-xl font-bold tracking-[-0.04em] text-sky-950">CYNEX</span>
+      <Link href="/" className="mb-8 inline-flex items-center transition hover:opacity-80">
+        <CynexLogo className="text-[32px]" />
       </Link>
 
       <div className="mb-6 max-w-md text-center">

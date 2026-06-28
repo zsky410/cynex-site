@@ -1,4 +1,4 @@
-import { Button, Form, Input, Select } from "antd";
+import { Button, Form, Input, Select, Table } from "antd";
 import type { ColumnsType } from "antd/es/table";
 import { useEffect, useMemo, useState } from "react";
 import { useSearchParams } from "react-router-dom";
@@ -6,7 +6,6 @@ import { AsyncState } from "../../components/common/AsyncState";
 import { StandardBulkActions } from "../../components/common/StandardBulkActions";
 import { FilterBar } from "../../components/common/FilterBar";
 import { PageHeader } from "../../components/common/PageHeader";
-import { ResourceTable } from "../../components/common/ResourceTable";
 import { useBulkDelete } from "../../components/common/useBulkDelete";
 import { useListSelection } from "../../components/common/useListSelection";
 import { StatusTag } from "../../components/common/StatusTag";
@@ -14,13 +13,15 @@ import { listResource } from "../../lib/admin-api";
 import { getDisplayLabel } from "../../lib/display-labels";
 import { labels } from "../../lib/labels";
 import { ProductModal } from "./ProductModal";
+import { ProductVariantsPanel, type ProductVariantRow } from "./ProductVariantsPanel";
+import { VariantModal } from "../variants/VariantModal";
 
 type ProductRecord = {
   id: string;
   name: string;
   slug: string;
   status: string;
-  sortOrder: number;
+  updatedAt?: string;
   shortDescription?: string;
 };
 
@@ -29,7 +30,7 @@ type ProductFilterForm = {
   status?: string;
 };
 
-const statusOptions = ["draft", "active", "inactive", "archived"].map((value) => ({
+const statusOptions = ["active", "inactive"].map((value) => ({
   value,
   label: getDisplayLabel(value),
 }));
@@ -43,6 +44,11 @@ export default function ProductListPage() {
   const [error, setError] = useState<string | null>(null);
   const [modalProductId, setModalProductId] = useState<string | null>(null);
   const [modalOpen, setModalOpen] = useState(false);
+  const [expandedRowKeys, setExpandedRowKeys] = useState<Array<string | number>>([]);
+  const [variantModalOpen, setVariantModalOpen] = useState(false);
+  const [variantModalId, setVariantModalId] = useState<string | null>(null);
+  const [variantProduct, setVariantProduct] = useState<{ id: string; name: string } | null>(null);
+  const [variantReloadByProduct, setVariantReloadByProduct] = useState<Record<string, number>>({});
   const [reloadKey, setReloadKey] = useState(0);
 
   const page = Number(searchParams.get("page") ?? "1");
@@ -66,8 +72,8 @@ export default function ProductListPage() {
     listResource<ProductRecord>("products", {
       page,
       perPage,
-      sort: "sortOrder",
-      order: "ASC",
+      sort: "updatedAt",
+      order: "DESC",
       filter,
     })
       .then((response) => {
@@ -88,17 +94,26 @@ export default function ProductListPage() {
         key: "status",
         render: (status: string) => <StatusTag status={status} />,
       },
-      { title: "Thứ tự", dataIndex: "sortOrder", key: "sortOrder", width: 120 },
       {
         title: labels.actions,
         key: "actions",
         render: (_, record) => (
-          <Button type="link" onClick={() => {
-            setModalProductId(record.id);
-            setModalOpen(true);
-          }}>
-            {labels.edit}
-          </Button>
+          <div className="flex items-center gap-2">
+            <Button type="link" onClick={() => {
+              setModalProductId(record.id);
+              setModalOpen(true);
+            }}>
+              {labels.edit}
+            </Button>
+            <Button type="link" onClick={() => {
+              setExpandedRowKeys((current) => (current.includes(record.id) ? current : [...current, record.id]));
+              setVariantProduct({ id: record.id, name: record.name });
+              setVariantModalId(null);
+              setVariantModalOpen(true);
+            }}>
+              Thêm biến thể
+            </Button>
+          </div>
         ),
       },
     ],
@@ -124,11 +139,32 @@ export default function ProductListPage() {
     setSearchParams(params);
   }
 
+  function bumpVariantReload(productId: string) {
+    setVariantReloadByProduct((current) => ({
+      ...current,
+      [productId]: (current[productId] ?? 0) + 1,
+    }));
+  }
+
+  function openVariantModalForProduct(product: { id: string; name: string }) {
+    setExpandedRowKeys((current) => (current.includes(product.id) ? current : [...current, product.id]));
+    setVariantProduct(product);
+    setVariantModalId(null);
+    setVariantModalOpen(true);
+  }
+
+  function openVariantModalForEdit(variant: ProductVariantRow, product: { id: string; name: string }) {
+    setExpandedRowKeys((current) => (current.includes(product.id) ? current : [...current, product.id]));
+    setVariantProduct(product);
+    setVariantModalId(variant.id);
+    setVariantModalOpen(true);
+  }
+
   return (
     <>
       <PageHeader
         title={labels.products}
-        subtitle="Giữ nguyên contract danh sách sản phẩm hiện tại, với bộ lọc và chỉnh sửa theo shell Ant Design."
+        subtitle="Quản lý sản phẩm làm trung tâm, với biến thể nằm ngay trong từng sản phẩm."
         extra={
           <Button type="primary" onClick={() => {
             setModalProductId(null);
@@ -166,46 +202,91 @@ export default function ProductListPage() {
       </Form>
 
       <AsyncState loading={loading} error={error} empty={!rows.length}>
-        <ResourceTable<ProductRecord>
-          columns={columns}
-          rows={rows}
-          loading={loading}
-          page={page}
-          perPage={perPage}
-          total={total}
-          onChangePage={(nextPage, nextPageSize) =>
-            setSearchParams(
-              new URLSearchParams({
-                page: String(nextPage),
-                perPage: String(nextPageSize),
-                ...(currentStatus ? { status: currentStatus } : {}),
-                ...(currentQuery ? { q: currentQuery } : {}),
-              }),
-            )
-          }
-          rowSelection={{
-            selectedRowKeys: selection.selectedRowKeys,
-            onChange: selection.onSelectionChange,
-            toolbar: (
-              <StandardBulkActions<ProductRecord>
-                selectedRows={selection.selectedRows}
-                onClear={selection.clearSelection}
-                onEdit={(row) => {
-                  setModalProductId(row.id);
-                  setModalOpen(true);
-                }}
-                onDelete={deleteSelected}
-                deleting={deleting}
-              />
-            ),
-          }}
-        />
+        <div className="admin-resource-table">
+          {selection.selectedRowKeys.length ? (
+            <StandardBulkActions<ProductRecord>
+              selectedRows={selection.selectedRows}
+              onClear={selection.clearSelection}
+              onEdit={(row) => {
+                setModalProductId(row.id);
+                setModalOpen(true);
+              }}
+              onDelete={deleteSelected}
+              deleting={deleting}
+            />
+          ) : null}
+          <Table<ProductRecord>
+            rowKey="id"
+            columns={columns}
+            dataSource={rows}
+            loading={loading}
+            rowSelection={{
+              selectedRowKeys: selection.selectedRowKeys,
+              onChange: (selectedRowKeys, selectedRows) =>
+                selection.onSelectionChange(
+                  selectedRowKeys as Array<string | number>,
+                  selectedRows,
+                ),
+            }}
+            expandable={{
+              expandedRowKeys,
+              onExpandedRowsChange: (keys) => setExpandedRowKeys(keys as Array<string | number>),
+              expandedRowRender: (record) => (
+                <ProductVariantsPanel
+                  productId={record.id}
+                  productName={record.name}
+                  reloadToken={variantReloadByProduct[record.id] ?? 0}
+                  onCreateVariant={openVariantModalForProduct}
+                  onEditVariant={openVariantModalForEdit}
+                />
+              ),
+            }}
+            pagination={{
+              current: page,
+              pageSize: perPage,
+              total,
+              showSizeChanger: true,
+              showTotal: (rowTotal, range) => `${range[0]}-${range[1]} / ${rowTotal}`,
+              onChange: (nextPage, nextPageSize) =>
+                setSearchParams(
+                  new URLSearchParams({
+                    page: String(nextPage),
+                    perPage: String(nextPageSize),
+                    ...(currentStatus ? { status: currentStatus } : {}),
+                    ...(currentQuery ? { q: currentQuery } : {}),
+                  }),
+                ),
+            }}
+            scroll={{ x: true }}
+          />
+        </div>
       </AsyncState>
       <ProductModal
         open={modalOpen}
         productId={modalProductId}
         onClose={() => setModalOpen(false)}
-        onSaved={() => setReloadKey((current) => current + 1)}
+        onSaved={(product) => {
+          setReloadKey((current) => current + 1);
+          if (product.created) {
+            openVariantModalForProduct({ id: product.id, name: product.name });
+          }
+        }}
+      />
+      <VariantModal
+        open={variantModalOpen}
+        variantId={variantModalId}
+        fixedProduct={variantProduct}
+        onClose={() => {
+          setVariantModalOpen(false);
+          setVariantModalId(null);
+          setVariantProduct(null);
+        }}
+        onSaved={() => {
+          setVariantModalOpen(false);
+          setVariantModalId(null);
+          if (variantProduct) bumpVariantReload(variantProduct.id);
+          setVariantProduct(null);
+        }}
       />
     </>
   );

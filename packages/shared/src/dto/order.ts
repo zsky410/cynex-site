@@ -9,6 +9,11 @@ export const CreateOrderSchema = z.object({
 });
 export type CreateOrderDto = z.infer<typeof CreateOrderSchema>;
 
+export const UpdateOrderCustomerInputSchema = z.object({
+  customerInput: z.record(z.string(), z.unknown()),
+});
+export type UpdateOrderCustomerInputDto = z.infer<typeof UpdateOrderCustomerInputSchema>;
+
 export const PayWithWalletSchema = z.object({}).strict();
 
 export const PaySchema = z.object({

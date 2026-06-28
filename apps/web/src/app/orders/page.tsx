@@ -2,7 +2,7 @@
 
 import Link from "next/link";
 import { useEffect, useMemo, useState } from "react";
-import { useRouter } from "next/navigation";
+import { useRouter, useSearchParams } from "next/navigation";
 import {
   OrderDetailLink,
   OrderListIcon,
@@ -26,6 +26,7 @@ interface OrderRow {
 
 export default function OrdersPage() {
   const router = useRouter();
+  const searchParams = useSearchParams();
   const [orders, setOrders] = useState<OrderRow[] | null>(null);
   const [filter, setFilter] = useState<(typeof ORDER_FILTER_TABS)[number]["key"]>("all");
   const [search, setSearch] = useState("");
@@ -70,6 +71,15 @@ export default function OrdersPage() {
       title="Lịch sử đơn hàng"
       subtitle="Quản lý và theo dõi trạng thái các dịch vụ số của bạn."
     >
+      {searchParams.get("created") ? (
+        <div className="mb-5 rounded-[18px] border border-emerald-100 bg-emerald-50 px-4 py-3 text-sm text-emerald-700">
+          Đã tạo {searchParams.get("created")} đơn hàng từ giỏ.
+          {searchParams.get("failed")
+            ? ` ${searchParams.get("failed")} sản phẩm chưa tạo được, bạn có thể thử lại trong giỏ hàng.`
+            : " Hãy tiếp tục thanh toán để hoàn tất."}
+        </div>
+      ) : null}
+
       <div className="mb-4">
         <input
           type="search"

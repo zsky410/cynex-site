@@ -4,6 +4,7 @@ import { getDisplayLabel } from "./display-labels";
 describe("getDisplayLabel", () => {
   it("maps known backend status and reason codes to Vietnamese labels", () => {
     expect(getDisplayLabel("active")).toBe("Hoạt động");
+    expect(getDisplayLabel("inactive")).toBe("Ẩn");
     expect(getDisplayLabel("out_of_stock")).toBe("Hết hàng");
     expect(getDisplayLabel("waiting_customer")).toBe("Chờ khách hàng");
     expect(getDisplayLabel("cannot_login")).toBe("Không thể đăng nhập");
@@ -12,6 +13,7 @@ describe("getDisplayLabel", () => {
   it("maps fulfillment and supply codes to Vietnamese labels", () => {
     expect(getDisplayLabel("DEDICATED_ACCOUNT")).toBe("Tài khoản riêng");
     expect(getDisplayLabel("SHARED_ACCOUNT")).toBe("Tài khoản dùng chung");
+    expect(getDisplayLabel("MANUAL_DELIVERY")).toBe("Khác");
     expect(getDisplayLabel("source_delivered")).toBe("Nguồn đã giao");
     expect(getDisplayLabel("internal")).toBe("Nội bộ");
   });

@@ -4,29 +4,16 @@ import {
   Bot,
   CirclePlay,
   CreditCard,
-  Grid2X2,
   Headphones,
-  LayoutGrid,
-  MonitorPlay,
   Music4,
   PackageCheck,
-  Palette,
-  ShieldCheck,
   ShoppingCart,
   Sparkles,
   Wallet,
 } from "lucide-react";
 import { PremiumFooter, PremiumHeader } from "@/components/storefront/PremiumChrome";
 import { FeaturedProducts } from "@/components/storefront/FeaturedProducts";
-
-const categories = [
-  { label: "AI Tools", icon: Bot },
-  { label: "Streaming", icon: MonitorPlay },
-  { label: "Thiết kế", icon: Palette },
-  { label: "Văn phòng", icon: CreditCard },
-  { label: "Bảo mật", icon: ShieldCheck },
-  { label: "Khác", icon: Grid2X2 },
-];
+import { CynexLogo } from "@/components/CynexLogo";
 
 const steps = [
   {
@@ -63,7 +50,7 @@ const floatingIcons = [
   { icon: Music4, className: "right-14 bottom-16 text-emerald-500" },
 ];
 
-export default function HomePage() {
+export default async function HomePage() {
   return (
     <div className="home-shell">
       <PremiumHeader />
@@ -80,7 +67,7 @@ export default function HomePage() {
 
             <h1 className="section-title text-balance max-w-[560px] text-5xl font-semibold leading-[1.06] tracking-[-0.05em] text-slate-950 lg:text-[64px]">
               Nâng cấp trải nghiệm số cùng{" "}
-              <span className="text-sky-700 underline decoration-sky-200 underline-offset-4">Cynex</span>
+              <CynexLogo />
             </h1>
 
             <p className="mt-6 max-w-[520px] text-[17px] leading-8 text-slate-500">
@@ -104,21 +91,6 @@ export default function HomePage() {
               </Link>
             </div>
 
-            <div className="mt-10 flex items-center gap-4">
-              <div className="flex -space-x-2">
-                {[0, 1, 2].map((item) => (
-                  <div
-                    key={item}
-                    className="flex h-10 w-10 items-center justify-center rounded-full border-2 border-white bg-gradient-to-br from-sky-100 to-slate-200 text-xs font-semibold text-sky-900 shadow-sm"
-                  >
-                    {item + 1}
-                  </div>
-                ))}
-              </div>
-              <p className="text-sm text-slate-500">
-                <span className="font-semibold text-slate-950">10,000+</span> khách hàng tin dùng
-              </p>
-            </div>
           </div>
 
           <div className="relative flex min-h-[430px] items-center justify-center lg:min-h-[520px]">
@@ -143,30 +115,6 @@ export default function HomePage() {
                 </span>
               </div>
             </div>
-          </div>
-        </section>
-
-        <section className="mx-auto max-w-[1180px] px-5 py-10 lg:px-8">
-          <div className="mb-8 flex items-end justify-between gap-4">
-            <h2 className="section-title text-4xl font-semibold tracking-[-0.04em] text-slate-950">Danh mục nổi bật</h2>
-            <Link href="/products" className="text-sm font-medium text-sky-700 transition hover:text-sky-800">
-              Xem tất cả
-            </Link>
-          </div>
-
-          <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-6">
-            {categories.map(({ label, icon: Icon }) => (
-              <Link
-                key={label}
-                href="/products"
-                className="glass-panel flex min-h-28 flex-col items-center justify-center rounded-2xl p-4 text-center transition hover:-translate-y-1 hover:shadow-[0_30px_60px_rgba(15,23,42,0.1)]"
-              >
-                <span className="mb-3 flex h-12 w-12 items-center justify-center rounded-full bg-sky-50 text-sky-700">
-                  <Icon className="h-5 w-5" />
-                </span>
-                <span className="text-sm font-medium text-slate-700">{label}</span>
-              </Link>
-            ))}
           </div>
         </section>
 

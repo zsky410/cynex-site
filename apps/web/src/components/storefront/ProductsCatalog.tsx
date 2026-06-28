@@ -1,66 +1,14 @@
 "use client";
 
-import Link from "next/link";
 import { useState } from "react";
+import { ChevronDown, Search } from "lucide-react";
+import { cn } from "@/lib/utils";
 import {
-  Bot,
-  BriefcaseBusiness,
-  ChevronDown,
-  Code2,
-  MonitorPlay,
-  Music4,
-  Palette,
-  Search,
-  Sparkles,
-} from "lucide-react";
-import { cn, formatVnd } from "@/lib/utils";
-
-interface CatalogCategory {
-  id: string;
-  name: string;
-  slug: string;
-}
-
-interface CatalogVariant {
-  id: string;
-  name: string;
-  price: number;
-  fulfillmentType: string;
-  status: string;
-}
-
-interface CatalogProduct {
-  id: string;
-  name: string;
-  slug: string;
-  shortDescription?: string | null;
-  image?: {
-    id: string;
-    fileName: string;
-    mimeType: string;
-    size: number;
-    publicUrl?: string | null;
-    contentPath: string;
-  } | null;
-  category?: CatalogCategory | null;
-  variants: CatalogVariant[];
-}
-
-const categoryMeta = {
-  "ai-tools": { label: "AI Tools", icon: Bot, chipClass: "bg-sky-50 text-sky-700", tileClass: "from-sky-100 via-cyan-50 to-white" },
-  streaming: { label: "Streaming", icon: MonitorPlay, chipClass: "bg-emerald-50 text-cyan-700", tileClass: "from-emerald-100 via-cyan-50 to-white" },
-  design: { label: "Design", icon: Palette, chipClass: "bg-fuchsia-50 text-cyan-700", tileClass: "from-indigo-100 via-sky-50 to-white" },
-  development: { label: "Development", icon: Code2, chipClass: "bg-slate-100 text-cyan-700", tileClass: "from-slate-100 via-sky-50 to-white" },
-  productivity: { label: "Productivity", icon: BriefcaseBusiness, chipClass: "bg-cyan-50 text-cyan-700", tileClass: "from-cyan-100 via-blue-50 to-white" },
-} as const;
-
-const keywordFallbacks = [
-  { key: "ai-tools", match: ["chatgpt", "midjourney", "claude", "gemini", "ai"] },
-  { key: "streaming", match: ["spotify", "netflix", "youtube", "disney", "prime"] },
-  { key: "design", match: ["canva", "adobe", "figma", "creative"] },
-  { key: "development", match: ["github", "copilot", "cursor", "jetbrains", "vercel"] },
-  { key: "productivity", match: ["notion", "office", "workspace", "grammarly", "slack"] },
-] as const;
+  ProductPreviewCard,
+  minActivePrice,
+  type StorefrontCategory,
+  type StorefrontProduct,
+} from "@/components/storefront/ProductPreviewCard";
 
 const priceRanges = [
   { value: "all", label: "Khoảng giá" },
@@ -84,30 +32,11 @@ const durationOptions = [
   { value: "lifetime", label: "Dài hạn / vĩnh viễn" },
 ];
 
-function normalizeCategory(product: CatalogProduct) {
-  const slug = product.category?.slug;
-  if (slug && slug in categoryMeta) {
-    return slug as keyof typeof categoryMeta;
-  }
-
-  const name = `${product.name} ${product.shortDescription ?? ""}`.toLowerCase();
-  const hit = keywordFallbacks.find((item) => item.match.some((keyword) => name.includes(keyword)));
-  return (hit?.key ?? "ai-tools") as keyof typeof categoryMeta;
+function minPrice(product: StorefrontProduct) {
+  return minActivePrice(product.variants) ?? 0;
 }
 
-function minPrice(product: CatalogProduct) {
-  if (!product.variants.length) return 0;
-  return Math.min(...product.variants.map((variant) => variant.price));
-}
-
-function inferCadence(product: CatalogProduct) {
-  const source = product.variants.map((variant) => variant.name.toLowerCase()).join(" ");
-  if (source.includes("vĩnh viễn") || source.includes("lifetime")) return "/gói";
-  if (source.includes("năm") || source.includes("12 tháng")) return "/năm";
-  return "/tháng";
-}
-
-function matchesPrice(product: CatalogProduct, value: string) {
+function matchesPrice(product: StorefrontProduct, value: string) {
   const price = minPrice(product);
   if (value === "under-100") return price < 100000;
   if (value === "100-300") return price >= 100000 && price <= 300000;
@@ -115,7 +44,7 @@ function matchesPrice(product: CatalogProduct, value: string) {
   return true;
 }
 
-function matchesFulfillment(product: CatalogProduct, value: string) {
+function matchesFulfillment(product: StorefrontProduct, value: string) {
   if (value === "all") return true;
   const types = product.variants.map((variant) => variant.fulfillmentType);
   if (value === "upgrade") return types.includes("CUSTOMER_ACCOUNT_UPGRADE");
@@ -125,9 +54,9 @@ function matchesFulfillment(product: CatalogProduct, value: string) {
   return true;
 }
 
-function matchesDuration(product: CatalogProduct, value: string) {
+function matchesDuration(product: StorefrontProduct, value: string) {
   if (value === "all") return true;
-  const source = product.variants.map((variant) => variant.name.toLowerCase()).join(" ");
+  const source = product.variants.map((variant) => variant.name?.toLowerCase() ?? "").join(" ");
   if (value === "monthly") return source.includes("tháng");
   if (value === "yearly") return source.includes("năm");
   if (value === "lifetime") return source.includes("vĩnh viễn") || source.includes("lifetime");
@@ -138,8 +67,8 @@ export function ProductsCatalog({
   products,
   categories,
 }: {
-  products: CatalogProduct[];
-  categories: CatalogCategory[];
+  products: StorefrontProduct[];
+  categories: StorefrontCategory[];
 }) {
   const [search, setSearch] = useState("");
   const [activeCategory, setActiveCategory] = useState("all");
@@ -159,7 +88,8 @@ export function ProductsCatalog({
   const filtered = products.filter((product) => {
     const query = `${product.name} ${product.shortDescription ?? ""}`.toLowerCase();
     const matchesSearch = !search.trim() || query.includes(search.trim().toLowerCase());
-    const matchesCategory = activeCategory === "all" || product.category?.slug === activeCategory || normalizeCategory(product) === activeCategory;
+    const matchesCategory = activeCategory === "all" || product.category?.slug === activeCategory;
+
     return (
       matchesSearch &&
       matchesCategory &&
@@ -215,62 +145,10 @@ export function ProductsCatalog({
         ))}
       </div>
 
-      <div className="mt-16 grid gap-7 md:grid-cols-2 xl:grid-cols-4">
-        {visibleProducts.map((product) => {
-          const categoryKey = normalizeCategory(product);
-          const meta = categoryMeta[categoryKey];
-          const Icon = meta.icon;
-          const price = minPrice(product);
-          const cadence = inferCadence(product);
-
-          return (
-            <Link
-              key={product.id}
-              href={`/products/${product.slug}`}
-              className="group flex min-h-[296px] flex-col justify-between rounded-[28px] border border-white/80 bg-white p-6 shadow-[0_22px_60px_rgba(15,23,42,0.08)] transition hover:-translate-y-1 hover:shadow-[0_30px_70px_rgba(15,23,42,0.12)]"
-            >
-              <div>
-                <div className={cn("flex h-36 w-full items-center justify-center overflow-hidden rounded-[24px] bg-gradient-to-br shadow-sm", meta.tileClass)}>
-                  <span className="sr-only">{meta.label}</span>
-                  {product.image?.publicUrl ? (
-                    // eslint-disable-next-line @next/next/no-img-element
-                    <img src={product.image.publicUrl} alt={product.name} className="h-full w-full object-cover" />
-                  ) : (
-                    <Icon className="h-10 w-10 text-sky-700" />
-                  )}
-                </div>
-
-                <div className="mt-5 flex items-start justify-between gap-4">
-                  <span className={cn("rounded-full px-3 py-1 text-xs font-medium", meta.chipClass)}>
-                    {meta.label}
-                  </span>
-                </div>
-
-                <h3 className="mt-4 text-[21px] font-semibold leading-[1.2] tracking-[-0.03em] text-slate-950">
-                  {product.name}
-                </h3>
-                <p className="mt-2 line-clamp-3 text-[13px] leading-6 text-slate-500">
-                  {product.shortDescription ?? "Gói dịch vụ premium được tuyển chọn để tối ưu công việc và giải trí hàng ngày."}
-                </p>
-              </div>
-
-              <div className="mt-6 border-t border-slate-100 pt-4">
-                <div className="flex items-end justify-between gap-4">
-                  <div>
-                    <p className="text-sm text-slate-400">Giá từ</p>
-                    <p className="mt-1 text-[17px] font-semibold text-sky-700">
-                      {formatVnd(price)}
-                      <span className="ml-1 font-medium text-slate-400">{cadence}</span>
-                    </p>
-                  </div>
-                  <span className="text-sm font-semibold text-sky-700 transition group-hover:text-sky-800">
-                    Xem chi tiết
-                  </span>
-                </div>
-              </div>
-            </Link>
-          );
-        })}
+      <div className="mt-16 grid gap-x-8 gap-y-9 sm:grid-cols-2 lg:grid-cols-3 2xl:grid-cols-4">
+        {visibleProducts.map((product) => (
+          <ProductPreviewCard key={product.id} product={product} />
+        ))}
       </div>
 
       {visibleProducts.length === 0 ? (

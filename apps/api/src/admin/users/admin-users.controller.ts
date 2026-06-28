@@ -17,6 +17,7 @@ import { WalletService } from "../../wallet/wallet.service";
 import { parseListQuery } from "../common/list-query";
 import { AuditService } from "../../audit/audit.service";
 import { AuditAction } from "@cynex/shared";
+import { FilesService } from "../../files/files.service";
 
 @UseGuards(AdminAuthGuard)
 @Controller("admin/users")
@@ -25,6 +26,7 @@ export class AdminUsersController {
     private readonly prisma: PrismaService,
     private readonly wallet: WalletService,
     private readonly audit: AuditService,
+    private readonly files: FilesService,
   ) {}
 
   @Get()
@@ -85,6 +87,10 @@ export class AdminUsersController {
       where: { id },
       select: { id: true, email: true, name: true, walletBalance: true, isLocked: true, createdAt: true },
     });
+    const userFiles = await this.prisma.fileObject.findMany({
+      where: { uploadedByUserId: id },
+      select: { storageDriver: true, storageKey: true },
+    });
 
     await this.prisma.$transaction(async (tx) => {
       const orders = await tx.order.findMany({ where: { userId: id }, select: { id: true } });
@@ -117,6 +123,7 @@ export class AdminUsersController {
       }
       await tx.user.delete({ where: { id } });
     });
+    await this.files.deleteR2ObjectsForRecords(userFiles);
 
     return { data: user };
   }

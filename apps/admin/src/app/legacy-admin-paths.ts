@@ -47,6 +47,17 @@ export function resolveLegacyAdminPath(pathname: string) {
     return "/shell/dashboard";
   }
 
+  if (
+    normalizedPath === "/variants" ||
+    normalizedPath === "/variants/create" ||
+    normalizedPath.startsWith("/variants/") ||
+    normalizedPath === "/product-variants" ||
+    normalizedPath === "/product-variants/create" ||
+    normalizedPath.startsWith("/product-variants/")
+  ) {
+    return "/shell/products";
+  }
+
   for (const config of resourceConfigList) {
     for (const legacyPrefix of config.legacyPrefixes) {
       const normalizedPrefix = normalizePath(legacyPrefix);

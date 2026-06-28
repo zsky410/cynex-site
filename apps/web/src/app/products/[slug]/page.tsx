@@ -113,7 +113,7 @@ export default async function ProductDetailPage({
             <span className="text-sky-900">{product.name}</span>
           </div>
 
-          <article className="grid items-start gap-5 py-4 lg:grid-cols-[minmax(0,0.88fr)_minmax(320px,0.78fr)] lg:gap-7">
+          <article className="grid items-start gap-8 py-4 lg:grid-cols-2 lg:gap-12">
             <div className={"mx-auto w-full max-w-[580px] self-start " + (product.image?.publicUrl ? "" : visual.glowClass + " ")}>
               <div className="relative overflow-hidden rounded-[18px]">
                 <div
@@ -146,11 +146,11 @@ export default async function ProductDetailPage({
               </div>
             </div>
 
-            <div className="max-w-[500px] pt-0.5 lg:ml-auto">
+            <div className="w-full min-w-0 pt-0.5">
               <p className="text-xs font-medium uppercase tracking-[0.18em] text-slate-500">
                 Sản phẩm
               </p>
-              <h1 className="mt-2 text-balance text-[26px] font-semibold leading-[1.18] tracking-[-0.045em] text-[#0f172a] md:max-w-[420px] md:text-[31px]">
+              <h1 className="mt-2 text-balance text-[26px] font-semibold leading-[1.18] tracking-[-0.045em] text-[#0f172a] md:text-[31px]">
                 {product.name}
               </h1>
               <p className="mt-2.5 text-sm text-slate-500">
@@ -162,8 +162,8 @@ export default async function ProductDetailPage({
                 </p>
               ) : null}
 
-              <div className="mt-4">
-                <BuyPanel variants={product.variants} productName={product.name} />
+              <div className="mt-4 w-full">
+                <BuyPanel variants={product.variants} productName={product.name} productSlug={product.slug} />
               </div>
             </div>
           </article>

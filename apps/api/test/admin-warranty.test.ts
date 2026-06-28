@@ -7,9 +7,18 @@ import { AdminWarrantyService } from "../src/admin/warranty/admin-warranty.servi
 import { WarrantyReplacementService } from "../src/warranty/replace";
 
 const prisma = new PrismaClient();
+const files = {
+  assertAdminOwnsFiles: async () => undefined,
+  resolveFilesForAdmin: async () => [],
+};
 const audit = new AuditService(prisma as any);
 const replacement = new WarrantyReplacementService(prisma as any, audit as any);
-const service = new AdminWarrantyService(prisma as any, audit as any, replacement as any);
+const service = new AdminWarrantyService(
+  prisma as any,
+  files as any,
+  audit as any,
+  replacement as any,
+);
 
 after(async () => {
   await prisma.$disconnect();

@@ -13,7 +13,7 @@ describe("resolveLegacyAdminPath", () => {
   it("redirects list and create pages for editable resources", () => {
     expect(resolveLegacyAdminPath("/products")).toBe("/shell/products");
     expect(resolveLegacyAdminPath("/products/create")).toBe("/shell/products/new");
-    expect(resolveLegacyAdminPath("/product-variants/123")).toBe("/shell/variants/123/edit");
+    expect(resolveLegacyAdminPath("/product-variants/123")).toBe("/shell/products");
     expect(resolveLegacyAdminPath("/inventory-keys/create")).toBe("/shell/inventory/keys/new");
   });
 
@@ -28,7 +28,7 @@ describe("resolveLegacyAdminPath", () => {
   });
 
   it("supports secondary legacy aliases and ignores unknown paths", () => {
-    expect(resolveLegacyAdminPath("/variants/create")).toBe("/shell/variants/new");
+    expect(resolveLegacyAdminPath("/variants/create")).toBe("/shell/products");
     expect(resolveLegacyAdminPath("/sources")).toBe("/shell/sources");
     expect(resolveLegacyAdminPath("/unknown/path")).toBeNull();
   });

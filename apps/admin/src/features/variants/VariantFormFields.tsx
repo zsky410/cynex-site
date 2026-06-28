@@ -41,7 +41,6 @@ export const fulfillmentOptions = [
   { value: "DEDICATED_ACCOUNT", label: "Tài khoản riêng" },
   { value: "SHARED_ACCOUNT", label: "Tài khoản dùng chung" },
   { value: "LICENSE_KEY", label: "Key/License" },
-  { value: "MANUAL_DELIVERY", label: "Giao thủ công" },
 ];
 
 const statusOptions = ["active", "inactive", "out_of_stock", "archived"].map((value) => ({
@@ -62,6 +61,7 @@ type VariantFormFieldsProps = {
   onFinish: (values: VariantPayload) => Promise<void> | void;
   onCancel: () => void;
   onSlugChange: (event: React.ChangeEvent<HTMLInputElement>) => void;
+  fixedProductId?: string;
 };
 
 export function ProductVariantFormFields({
@@ -71,8 +71,14 @@ export function ProductVariantFormFields({
   onFinish,
   onCancel,
   onSlugChange,
+  fixedProductId,
 }: VariantFormFieldsProps) {
   const requiresCustomerInput = Form.useWatch("requiresCustomerInput", form);
+  const selectedFulfillmentType = Form.useWatch("fulfillmentType", form);
+  const resolvedFulfillmentOptions =
+    selectedFulfillmentType === "MANUAL_DELIVERY"
+      ? [...fulfillmentOptions, { value: "MANUAL_DELIVERY", label: "Khác" }]
+      : fulfillmentOptions;
 
   return (
     <Form<VariantPayload>
@@ -97,7 +103,7 @@ export function ProductVariantFormFields({
       <Row gutter={16}>
         <Col xs={24} md={12}>
           <Form.Item label="Sản phẩm" name="productId" rules={[{ required: true, message: "Chọn sản phẩm" }]}>
-            <Select options={productOptions} />
+            <Select disabled={Boolean(fixedProductId)} options={productOptions} />
           </Form.Item>
         </Col>
         <Col xs={24} md={12}>
@@ -132,11 +138,11 @@ export function ProductVariantFormFields({
         </Col>
         <Col xs={24} md={12}>
           <Form.Item
-            label="Kiểu giao hàng"
+            label="Hình thức biến thể"
             name="fulfillmentType"
-            rules={[{ required: true, message: "Chọn phương thức fulfillment" }]}
+            rules={[{ required: true, message: "Chọn hình thức biến thể" }]}
           >
-            <Select options={fulfillmentOptions} />
+            <Select options={resolvedFulfillmentOptions} />
           </Form.Item>
         </Col>
         <Col xs={24} md={12}>

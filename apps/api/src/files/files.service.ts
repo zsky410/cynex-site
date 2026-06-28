@@ -1,12 +1,14 @@
 import {
   BadRequestException,
+  ConflictException,
   Injectable,
   NotFoundException,
   ServiceUnavailableException,
 } from "@nestjs/common";
-import { GetObjectCommand, PutObjectCommand, S3Client } from "@aws-sdk/client-s3";
+import { DeleteObjectCommand, GetObjectCommand, PutObjectCommand, S3Client } from "@aws-sdk/client-s3";
 import path from "node:path";
 import { randomUUID } from "node:crypto";
+import sharp from "sharp";
 import { PrismaService } from "../prisma/prisma.service";
 import type { FileDescriptor } from "./file-descriptor";
 
@@ -24,8 +26,15 @@ type StoredFile = {
 };
 
 type FileActorType = "user" | "admin";
+type StoredFileRecord = {
+  id?: string;
+  storageDriver: string;
+  storageKey: string;
+};
 
 const MAX_FILE_BYTES = 10 * 1024 * 1024;
+const MAX_IMAGE_DIMENSION = 1600;
+const IMAGE_WEBP_QUALITY = 82;
 const ALLOWED_MIME_TYPES = new Set([
   "image/jpeg",
   "image/png",
@@ -99,18 +108,46 @@ export class FilesService {
     });
   }
 
+  async deleteAdminFile(adminId: string, fileId: string) {
+    const file = await this.prisma.fileObject.findFirst({
+      where: { id: fileId, uploadedByAdminId: adminId },
+    });
+    if (!file) throw new NotFoundException("Tệp không tồn tại");
+    await this.assertFileIsUnreferenced(fileId);
+    await this.deleteStoredFile(file);
+    return { id: fileId };
+  }
+
+  async deleteUnreferencedFiles(fileIds: string[]) {
+    const ids = uniqueIds(fileIds);
+    for (const id of ids) {
+      if (await this.isFileReferenced(id)) continue;
+      const file = await this.prisma.fileObject.findUnique({ where: { id } });
+      if (file) await this.deleteStoredFile(file);
+    }
+  }
+
+  async deleteR2ObjectsForRecords(files: StoredFileRecord[]) {
+    for (const file of files) {
+      if (file.storageDriver === "r2") {
+        await this.deleteR2Object(file.storageKey);
+      }
+    }
+  }
+
   private async upload(actorType: "user" | "admin", actorId: string, file: UploadableFile | undefined) {
     validateUpload(file);
     assertR2Configured();
-    const ext = path.extname(file.originalname).toLowerCase();
+    const preparedFile = await prepareFileForStorage(file);
+    const ext = path.extname(preparedFile.originalname).toLowerCase();
     const storageKey = `${actorType}/${actorId}/${new Date().toISOString().slice(0, 10)}/${randomUUID()}${ext}`;
     const client = r2Client();
     await client.send(
       new PutObjectCommand({
         Bucket: process.env.R2_BUCKET,
         Key: storageKey,
-        Body: file.buffer,
-        ContentType: file.mimetype,
+        Body: preparedFile.buffer,
+        ContentType: preparedFile.mimetype,
       }),
     );
     const base = (process.env.R2_PUBLIC_BASE_URL ?? "").trim();
@@ -118,9 +155,9 @@ export class FilesService {
 
     const created = await this.prisma.fileObject.create({
       data: {
-        fileName: file.originalname,
-        mimeType: file.mimetype,
-        size: file.size,
+        fileName: preparedFile.originalname,
+        mimeType: preparedFile.mimetype,
+        size: preparedFile.size,
         storageDriver: "r2",
         storageBucket: process.env.R2_BUCKET,
         storageKey,
@@ -161,6 +198,41 @@ export class FilesService {
     const bytes = await object.Body?.transformToByteArray();
     if (!bytes) throw new NotFoundException("Không thể tải tệp");
     return Buffer.from(bytes);
+  }
+
+  private async assertFileIsUnreferenced(fileId: string) {
+    if (await this.isFileReferenced(fileId)) {
+      throw new ConflictException("Tệp đang được sử dụng, hãy lưu thay đổi hoặc xóa dữ liệu liên kết trước");
+    }
+  }
+
+  private async isFileReferenced(fileId: string) {
+    const [productImageCount, productGuideCount, sourceProofCount] = await Promise.all([
+      this.prisma.product.count({ where: { imageFileId: fileId } }),
+      this.prisma.product.count({ where: { guideFileIds: { array_contains: [fileId] } as any } }),
+      this.prisma.sourceOrder.count({ where: { proofFileIds: { array_contains: [fileId] } as any } }),
+    ]);
+    return productImageCount + productGuideCount + sourceProofCount > 0;
+  }
+
+  private async deleteStoredFile(file: StoredFileRecord) {
+    if (file.storageDriver === "r2") {
+      await this.deleteR2Object(file.storageKey);
+    }
+    if (file.id) {
+      await this.prisma.fileObject.delete({ where: { id: file.id } });
+    }
+  }
+
+  private async deleteR2Object(storageKey: string) {
+    assertR2Configured();
+    const client = r2Client();
+    await client.send(
+      new DeleteObjectCommand({
+        Bucket: process.env.R2_BUCKET,
+        Key: storageKey,
+      }),
+    );
   }
 
   private async assertOwnedFiles(actorType: FileActorType, actorId: string, fileIds: string[]) {
@@ -216,6 +288,35 @@ export class FilesService {
   }
 }
 
+export async function prepareFileForStorage(file: UploadableFile): Promise<UploadableFile> {
+  if (!file.mimetype.startsWith("image/")) return file;
+
+  let compressed: Buffer;
+  try {
+    compressed = await sharp(file.buffer)
+      .rotate()
+      .resize({
+        width: MAX_IMAGE_DIMENSION,
+        height: MAX_IMAGE_DIMENSION,
+        fit: "inside",
+        withoutEnlargement: true,
+      })
+      .webp({ quality: IMAGE_WEBP_QUALITY })
+      .toBuffer();
+  } catch {
+    throw new BadRequestException("Ảnh tải lên không hợp lệ");
+  }
+
+  if (compressed.length >= file.buffer.length) return file;
+
+  return {
+    originalname: replaceFileExtension(file.originalname, ".webp"),
+    mimetype: "image/webp",
+    size: compressed.length,
+    buffer: compressed,
+  };
+}
+
 function validateUpload(file: UploadableFile | undefined): asserts file is UploadableFile {
   if (!file) {
     throw new BadRequestException("Thiếu tệp tải lên");
@@ -247,6 +348,11 @@ function assertR2Configured() {
 
 function uniqueIds(fileIds: string[]) {
   return Array.from(new Set(fileIds.filter(Boolean)));
+}
+
+function replaceFileExtension(fileName: string, extension: string) {
+  const parsed = path.parse(fileName);
+  return `${parsed.name}${extension}`;
 }
 
 let _r2Client: S3Client | null = null;

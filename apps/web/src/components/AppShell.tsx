@@ -2,11 +2,13 @@
 
 import Link from "next/link";
 import { usePathname } from "next/navigation";
+import { CynexLogo } from "@/components/CynexLogo";
 
 export function AppShell({ children }: { children: React.ReactNode }) {
   const pathname = usePathname();
   const isStandaloneRoute =
     pathname === "/" ||
+    pathname === "/cart" ||
     pathname.startsWith("/products") ||
     pathname.startsWith("/checkout/") ||
     pathname.startsWith("/orders") ||
@@ -29,8 +31,8 @@ export function AppShell({ children }: { children: React.ReactNode }) {
     <>
       <header className="border-b bg-white">
         <div className="mx-auto flex max-w-5xl items-center justify-between px-4 py-4">
-          <Link href="/" className="text-lg font-bold text-brand">
-            Cynex
+          <Link href="/" className="inline-flex items-center transition hover:opacity-85">
+            <CynexLogo className="text-[26px]" />
           </Link>
           <nav className="flex gap-4 text-sm">
             <Link href="/products">Sản phẩm</Link>

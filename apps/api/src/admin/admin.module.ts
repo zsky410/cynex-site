@@ -1,6 +1,7 @@
 import { Module } from "@nestjs/common";
 import { AdminAuthController } from "./admin-auth/admin-auth.controller";
 import { AdminProductsController } from "./catalog/admin-products.controller";
+import { AdminCategoriesController } from "./catalog/admin-categories.controller";
 import { AdminVariantsController } from "./catalog/admin-variants.controller";
 import { AdminOrdersController } from "./orders/admin-orders.controller";
 import { AdminFulfillmentController } from "./orders/admin-fulfillment.controller";
@@ -29,6 +30,7 @@ import { FilesModule } from "../files/files.module";
   controllers: [
     AdminAuthController,
     AdminProductsController,
+    AdminCategoriesController,
     AdminVariantsController,
     AdminOrdersController,
     AdminRefundController,

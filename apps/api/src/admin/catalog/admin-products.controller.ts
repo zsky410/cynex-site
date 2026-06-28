@@ -15,7 +15,6 @@ const FIELDS = [
   "shortDescription",
   "description",
   "status",
-  "sortOrder",
   "categoryId",
   "imageFileId",
   "guideFileIds",
@@ -81,7 +80,9 @@ export class AdminProductsController {
   async update(@CurrentAdmin() admin: AuthAdmin, @Param("id") id: string, @Body() body: Record<string, any>) {
     const dataInput = pick(body);
     await this.assertAdminFileRefs(admin.id, dataInput);
+    const previous = await this.prisma.product.findUniqueOrThrow({ where: { id } });
     const data = await this.prisma.product.update({ where: { id }, data: dataInput });
+    await this.files.deleteUnreferencedFiles(difference(fileIdsForProduct(previous), fileIdsForProduct(data)));
     await this.audit.logAdminAction(admin.id, AuditAction.ADMIN_UPDATE_PRODUCT, "product", id);
     return { data: await this.serialize(data) };
   }
@@ -92,7 +93,9 @@ export class AdminProductsController {
     if (!preflight.canDelete) {
       throwDeleteBlocked(id, preflight.blockingDependencies);
     }
+    const existing = await this.prisma.product.findUniqueOrThrow({ where: { id } });
     const deleted = await this.prisma.product.delete({ where: { id } });
+    await this.files.deleteUnreferencedFiles(fileIdsForProduct(existing));
     await this.audit.logAdminAction(admin.id, "ADMIN_DELETE_PRODUCT", "product", id);
     return { data: deleted };
   }
@@ -116,4 +119,18 @@ export class AdminProductsController {
       guideFiles,
     };
   }
+}
+
+function fileIdsForProduct(product: { imageFileId?: string | null; guideFileIds?: unknown }) {
+  const ids = [];
+  if (product.imageFileId) ids.push(product.imageFileId);
+  if (Array.isArray(product.guideFileIds)) {
+    ids.push(...product.guideFileIds.filter((value): value is string => typeof value === "string" && value.length > 0));
+  }
+  return ids;
+}
+
+function difference(before: string[], after: string[]) {
+  const afterSet = new Set(after);
+  return before.filter((id) => !afterSet.has(id));
 }

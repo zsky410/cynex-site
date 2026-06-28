@@ -1,6 +1,7 @@
 import { labels } from "./labels";
 
 export type ResourceConfigKey =
+  | "categories"
   | "products"
   | "variants"
   | "orders"
@@ -22,6 +23,7 @@ export type ResourceConfig = {
   shellGroup: "catalog" | "operations" | "supply" | "logs";
   description: string;
   iconKey:
+    | "categories"
     | "products"
     | "variants"
     | "orders"
@@ -36,6 +38,7 @@ export type ResourceConfig = {
   supportsCreate?: boolean;
   supportsEdit?: boolean;
   supportsShow?: boolean;
+  hiddenInNavigation?: boolean;
 };
 
 export const resourceGroupLabels = {
@@ -46,6 +49,18 @@ export const resourceGroupLabels = {
 } as const;
 
 export const resourceConfigs: Record<ResourceConfigKey, ResourceConfig> = {
+  categories: {
+    key: "categories",
+    label: labels.categories,
+    legacyResourceName: "categories",
+    shellPath: "/shell/categories",
+    legacyPrefixes: ["/categories"],
+    shellGroup: "catalog",
+    description: "Quản lý danh mục thật để storefront và biểu mẫu sản phẩm dùng chung một nguồn dữ liệu.",
+    iconKey: "categories",
+    supportsCreate: true,
+    supportsEdit: true,
+  },
   products: {
     key: "products",
     label: labels.products,
@@ -69,6 +84,7 @@ export const resourceConfigs: Record<ResourceConfigKey, ResourceConfig> = {
     iconKey: "variants",
     supportsCreate: true,
     supportsEdit: true,
+    hiddenInNavigation: true,
   },
   orders: {
     key: "orders",

@@ -9,6 +9,7 @@ import { notifyError, notifySuccess } from "../../lib/notifications";
 import { useAutoSlug } from "../../lib/useAutoSlug";
 import {
   buildProductPayload,
+  normalizeProductStatus,
   ProductFormFields,
   type ProductFormValues,
   type ProductRecord,
@@ -27,7 +28,7 @@ export default function ProductFormPage() {
 
   useEffect(() => {
     if (!productId) {
-      const defaults: Partial<ProductFormValues> = { status: "draft", sortOrder: 0 };
+      const defaults: Partial<ProductFormValues> = { status: "inactive" };
       form.setFieldsValue(defaults);
       syncAutoSlugState(defaults);
       return;
@@ -37,6 +38,7 @@ export default function ProductFormPage() {
       .then((response) => {
         const values: ProductFormValues = {
           ...response.data,
+          status: normalizeProductStatus(response.data.status),
           image: response.data.image ?? null,
           guideFiles: response.data.guideFiles ?? [],
         };
