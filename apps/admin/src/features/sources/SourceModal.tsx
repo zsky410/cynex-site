@@ -1,4 +1,4 @@
-import { Card, Form, Modal } from "antd";
+import { Form, Modal } from "antd";
 import { useEffect, useState } from "react";
 import { AsyncState } from "../../components/common/AsyncState";
 import { IntegrityWarningAlert } from "../../components/common/IntegrityWarningAlert";
@@ -83,16 +83,14 @@ export function SourceModal({ open, sourceId, onClose, onSaved }: SourceModalPro
       width={820}
     >
       <AsyncState loading={loading} error={error}>
-        <Card bordered={false} styles={{ body: { padding: 0 } }}>
-          <IntegrityWarningAlert integrityWarnings={record?.integrityWarnings} />
-          <SourceFormFields
-            form={form}
-            saving={saving}
-            onFinish={submit}
-            onCancel={onClose}
-            onSlugChange={handleSlugChange}
-          />
-        </Card>
+        <IntegrityWarningAlert integrityWarnings={record?.integrityWarnings} />
+        <SourceFormFields
+          form={form}
+          saving={saving}
+          onFinish={submit}
+          onCancel={onClose}
+          onSlugChange={handleSlugChange}
+        />
       </AsyncState>
     </Modal>
   );

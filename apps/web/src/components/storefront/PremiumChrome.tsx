@@ -2,16 +2,16 @@
 
 import Link from "next/link";
 import { usePathname, useRouter } from "next/navigation";
-import { LayoutGrid, LogOut, Menu, UserRound, X } from "lucide-react";
+import { ChevronDown, LogOut, Menu, ReceiptText, ShoppingCart, UserRound, WalletCards, X } from "lucide-react";
 import { useEffect, useState } from "react";
 import { apiFetch, clearToken, getToken } from "@/lib/api";
+import { useCart } from "@/components/cart/cart-store";
 import { cn } from "@/lib/utils";
+import { CynexLogo } from "@/components/CynexLogo";
 
 const navItems = [
   { href: "/products", label: "Sản phẩm", key: "products" },
   { href: "/guide", label: "Hướng dẫn", key: "guide" },
-  { href: "/orders", label: "Đơn hàng", key: "orders" },
-  { href: "/wallet", label: "Ví của tôi", key: "wallet" },
   { href: "/warranty", label: "Hỗ trợ", key: "support" },
 ];
 
@@ -63,8 +63,10 @@ function userInitials(user: SessionUser): string {
 export function PremiumHeader({ activeKey }: { activeKey?: string }) {
   const pathname = usePathname();
   const router = useRouter();
+  const { count } = useCart();
   const [user, setUser] = useState<SessionUser | null>(null);
   const [menuOpen, setMenuOpen] = useState(false);
+  const [profileOpen, setProfileOpen] = useState(false);
 
   useEffect(() => {
     if (!getToken()) {
@@ -78,6 +80,7 @@ export function PremiumHeader({ activeKey }: { activeKey?: string }) {
 
   useEffect(() => {
     setMenuOpen(false);
+    setProfileOpen(false);
   }, [pathname]);
 
   async function logout() {
@@ -90,12 +93,11 @@ export function PremiumHeader({ activeKey }: { activeKey?: string }) {
   return (
     <header className="sticky top-0 z-20 border-b border-white/80 bg-white/80 backdrop-blur-xl">
       <div className="mx-auto flex max-w-[1180px] items-center justify-between gap-4 px-5 py-4 lg:px-8">
-        <Link href="/" className="flex items-center gap-2 text-[22px] font-semibold tracking-[-0.04em] text-sky-950">
-          <LayoutGrid className="h-4 w-4 text-sky-700" strokeWidth={2.3} />
-          <span>CYNEX</span>
+        <Link href="/" className="inline-flex items-center transition hover:opacity-85">
+          <CynexLogo className="text-[26px]" />
         </Link>
 
-        <nav className="hidden items-center gap-8 text-[13px] text-slate-600 lg:flex">
+        <nav className="hidden items-center gap-8 text-[14px] text-slate-600 lg:flex">
           {navItems.map((item) => {
             const active = item.key === activeKey;
             return (
@@ -103,8 +105,8 @@ export function PremiumHeader({ activeKey }: { activeKey?: string }) {
                 key={item.key}
                 href={item.href}
                 className={cn(
-                  "border-b-2 pb-1 transition",
-                  active ? "border-sky-600 font-semibold text-sky-700" : "border-transparent hover:text-sky-700",
+                  "transition",
+                  active ? "font-semibold text-sky-700" : "hover:text-sky-700",
                 )}
               >
                 {item.label}
@@ -113,29 +115,61 @@ export function PremiumHeader({ activeKey }: { activeKey?: string }) {
           })}
         </nav>
 
-        <div className="flex items-center gap-2 text-sm sm:gap-3">
+        <div className="flex items-center gap-3 text-sm sm:gap-5">
+          <Link
+            href="/cart"
+            aria-label="Giỏ hàng"
+            className="relative inline-flex h-10 w-10 items-center justify-center text-slate-700 transition hover:text-sky-700"
+          >
+            <ShoppingCart className="h-4.5 w-4.5" />
+            {count ? (
+              <span className="absolute -right-1 -top-1 min-w-5 rounded-full bg-sky-700 px-1.5 py-0.5 text-center text-[10px] font-semibold text-white">
+                {count}
+              </span>
+            ) : null}
+          </Link>
+
           {user ? (
-            <>
-              <Link
-                href="/profile"
-                className="hidden items-center gap-2 rounded-xl border border-slate-200 bg-white px-3 py-2 transition hover:border-sky-200 sm:inline-flex"
-              >
-                <span className="flex h-7 w-7 items-center justify-center rounded-full bg-sky-100 text-xs font-bold text-sky-800">
-                  {userInitials(user)}
-                </span>
-                <span className="max-w-[120px] truncate text-[13px] font-medium text-slate-700">
-                  {user.name?.trim() || user.email.split("@")[0]}
-                </span>
-              </Link>
+            <div className="relative hidden sm:block">
               <button
                 type="button"
-                onClick={logout}
-                className="hidden items-center gap-1.5 rounded-xl px-3 py-2 text-[13px] font-medium text-slate-600 transition hover:bg-slate-100 sm:inline-flex"
+                onClick={() => setProfileOpen((value) => !value)}
+                className="inline-flex items-center gap-2 text-[13px] font-medium text-slate-700 transition hover:text-sky-700"
               >
-                <LogOut className="h-4 w-4" />
-                Đăng xuất
+                <span className="flex h-8 w-8 items-center justify-center rounded-full bg-sky-100 text-xs font-bold text-sky-800">
+                  {userInitials(user)}
+                </span>
+                <span className="max-w-[140px] truncate">
+                  {user.name?.trim() || user.email.split("@")[0]}
+                </span>
+                <ChevronDown className={cn("h-4 w-4 transition", profileOpen && "rotate-180")} />
               </button>
-            </>
+
+              {profileOpen ? (
+                <div className="absolute right-0 top-12 z-30 min-w-max rounded-2xl border border-slate-200 bg-white p-2 text-sm shadow-[0_18px_44px_rgba(15,23,42,0.12)]">
+                  <Link href="/profile" className="flex items-center gap-2 whitespace-nowrap rounded-xl px-3 py-2.5 text-slate-700 transition hover:bg-slate-50 hover:text-sky-700">
+                    <UserRound className="h-4 w-4" />
+                    Tài khoản
+                  </Link>
+                  <Link href="/orders" className="flex items-center gap-2 whitespace-nowrap rounded-xl px-3 py-2.5 text-slate-700 transition hover:bg-slate-50 hover:text-sky-700">
+                    <ReceiptText className="h-4 w-4" />
+                    Đơn hàng
+                  </Link>
+                  <Link href="/wallet" className="flex items-center gap-2 whitespace-nowrap rounded-xl px-3 py-2.5 text-slate-700 transition hover:bg-slate-50 hover:text-sky-700">
+                    <WalletCards className="h-4 w-4" />
+                    Ví của tôi
+                  </Link>
+                  <button
+                    type="button"
+                    onClick={logout}
+                    className="flex w-full items-center gap-2 whitespace-nowrap rounded-xl px-3 py-2.5 text-left text-red-600 transition hover:bg-red-50"
+                  >
+                    <LogOut className="h-4 w-4" />
+                    Đăng xuất
+                  </button>
+                </div>
+              ) : null}
+            </div>
           ) : (
             <>
               <Link href="/login" className="hidden font-medium text-slate-700 transition hover:text-sky-700 sm:inline-flex">
@@ -178,6 +212,18 @@ export function PremiumHeader({ activeKey }: { activeKey?: string }) {
             ))}
           </nav>
           <div className="mt-4 border-t border-slate-100 pt-4">
+            <Link
+              href="/cart"
+              className="mb-2 flex items-center gap-2 rounded-xl px-3 py-2.5 text-sm font-medium text-slate-700 hover:bg-slate-50"
+            >
+              <ShoppingCart className="h-4 w-4" />
+              Giỏ hàng
+              {count ? (
+                <span className="ml-auto rounded-full bg-sky-100 px-2 py-0.5 text-[11px] font-semibold text-sky-700">
+                  {count}
+                </span>
+              ) : null}
+            </Link>
             {user ? (
               <div className="space-y-2">
                 <Link
@@ -218,9 +264,8 @@ export function PremiumFooter() {
     <footer className="border-t border-white/80 bg-[#edf2fb]">
       <div className="mx-auto grid max-w-[1180px] gap-10 px-5 py-14 lg:grid-cols-[1.3fr_1fr_1fr_1fr] lg:px-8">
         <div>
-          <Link href="/" className="flex items-center gap-2 text-[24px] font-semibold tracking-[-0.04em] text-sky-950">
-            <LayoutGrid className="h-5 w-5 text-sky-700" strokeWidth={2.3} />
-            <span>CYNEX</span>
+          <Link href="/" className="inline-flex items-center transition hover:opacity-85">
+            <CynexLogo className="text-[30px]" />
           </Link>
           <p className="mt-4 max-w-[260px] text-sm leading-7 text-slate-500">
             Nền tảng mua sắm dịch vụ số, bản quyền phần mềm và công cụ AI hàng đầu.

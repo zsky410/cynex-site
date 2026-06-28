@@ -12,7 +12,7 @@ export class CatalogService {
   async listProducts() {
     const products = await this.prisma.product.findMany({
       where: { status: "active" },
-      orderBy: { sortOrder: "asc" },
+      orderBy: { updatedAt: "desc" },
       select: {
         id: true,
         name: true,
@@ -67,7 +67,16 @@ export class CatalogService {
   }
 
   listCategories() {
-    return this.prisma.category.findMany({ orderBy: { sortOrder: "asc" } });
+    return this.prisma.category.findMany({
+      where: {
+        products: {
+          some: {
+            status: "active",
+          },
+        },
+      },
+      orderBy: { name: "asc" },
+    });
   }
 
   private async serializeProduct<

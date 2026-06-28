@@ -1,40 +1,14 @@
 import { publicFetch } from "@/lib/api";
 import { PremiumFooter, PremiumHeader } from "@/components/storefront/PremiumChrome";
 import { ProductsCatalog } from "@/components/storefront/ProductsCatalog";
-
-interface ProductCard {
-  id: string;
-  name: string;
-  slug: string;
-  shortDescription?: string | null;
-  image?: {
-    id: string;
-    fileName: string;
-    mimeType: string;
-    size: number;
-    publicUrl?: string | null;
-    contentPath: string;
-  } | null;
-  category?: {
-    id: string;
-    name: string;
-    slug: string;
-  } | null;
-  variants: { id: string; name: string; price: number; fulfillmentType: string; status: string }[];
-}
-
-interface Category {
-  id: string;
-  name: string;
-  slug: string;
-}
+import type { StorefrontCategory, StorefrontProduct } from "@/components/storefront/ProductPreviewCard";
 
 export const dynamic = "force-dynamic";
 
 export default async function ProductsPage() {
   const [products, categories] = await Promise.all([
-    publicFetch<ProductCard[]>("/products"),
-    publicFetch<Category[]>("/categories"),
+    publicFetch<StorefrontProduct[]>("/products"),
+    publicFetch<StorefrontCategory[]>("/categories"),
   ]);
 
   return (

@@ -2,14 +2,19 @@
 
 import { useRouter } from "next/navigation";
 import { ShoppingCart, WalletCards } from "lucide-react";
-import { useMemo, useState } from "react";
+import { useEffect, useMemo, useState } from "react";
 import { apiFetch, getToken, ApiError } from "@/lib/api";
+import { useCart } from "@/components/cart/cart-store";
 import { cn, formatVnd } from "@/lib/utils";
 import {
   getConfiguredCustomerFields,
   validateCustomerInput,
   type CustomerInputField,
 } from "./buy-panel-customer-input";
+import {
+  getVariantFulfillmentBadgeLabel,
+  getVariantStorefrontOptionLabel,
+} from "./buy-panel-labels";
 
 export interface Variant {
   id: string;
@@ -33,11 +38,14 @@ function deriveOriginalPrice(price: number, discountPercent?: number | null): nu
 export function BuyPanel({
   variants,
   productName,
+  productSlug,
 }: {
   variants: Variant[];
   productName: string;
+  productSlug: string;
 }) {
   const router = useRouter();
+  const { addItem } = useCart();
   const orderedVariants = useMemo(
     () =>
       [...variants].sort((a, b) => {
@@ -52,8 +60,25 @@ export function BuyPanel({
   const [error, setError] = useState<string | null>(null);
   const [loading, setLoading] = useState(false);
   const [cartNotice, setCartNotice] = useState<string | null>(null);
+  const [justAdded, setJustAdded] = useState(false);
 
-  const selected = orderedVariants.find((v) => v.id === selectedId);
+  const fulfillmentOptions = useMemo(() => {
+    const seen = new Set<string>();
+    return orderedVariants.filter((variant) => {
+      if (seen.has(variant.fulfillmentType)) return false;
+      seen.add(variant.fulfillmentType);
+      return true;
+    });
+  }, [orderedVariants]);
+  const selectedFulfillmentType =
+    orderedVariants.find((variant) => variant.id === selectedId)?.fulfillmentType ??
+    fulfillmentOptions[0]?.fulfillmentType ??
+    "";
+  const variantsForFulfillment = orderedVariants.filter(
+    (variant) => variant.fulfillmentType === selectedFulfillmentType,
+  );
+
+  const selected = orderedVariants.find((v) => v.id === selectedId) ?? variantsForFulfillment[0];
   if (!selected) return <p className="text-slate-400">Chưa có gói bán.</p>;
   const activeVariant = selected;
   const activeOldPrice = deriveOriginalPrice(activeVariant.price, activeVariant.discountPercent);
@@ -92,34 +117,36 @@ export function BuyPanel({
 
   function addToCart() {
     setError(null);
-    try {
-      const current = JSON.parse(localStorage.getItem("cynex_cart") ?? "[]") as Array<{
-        productName: string;
-        productVariantId: string;
-        variantName: string;
-        price: number;
-      }>;
-
-      const next = [
-        ...current.filter((item) => item.productVariantId !== activeVariant.id),
-        {
-          productName,
-          productVariantId: activeVariant.id,
-          variantName: activeVariant.name,
-          price: activeVariant.price,
-        },
-      ];
-      localStorage.setItem("cynex_cart", JSON.stringify(next));
-      setCartNotice("Đã thêm gói đã chọn vào giỏ tạm.");
-    } catch {
-      setCartNotice("Không thể lưu vào giỏ tạm lúc này.");
+    if (activeVariant.requiresCustomerInput) {
+      const validationError = validateCustomerInput(configuredCustomerFields, input);
+      if (validationError) {
+        setError(validationError);
+        return;
+      }
     }
+
+    addItem({
+      productSlug,
+      productName,
+      productVariantId: activeVariant.id,
+      variantName: activeVariant.name,
+      price: activeVariant.price,
+      customerInput: activeVariant.requiresCustomerInput ? input : undefined,
+    });
+    setCartNotice("Đã thêm sản phẩm vào giỏ hàng.");
+    setJustAdded(true);
   }
 
+  useEffect(() => {
+    if (!justAdded) return;
+    const timer = window.setTimeout(() => setJustAdded(false), 1600);
+    return () => window.clearTimeout(timer);
+  }, [justAdded]);
+
   return (
-    <div>
-      <div className="border-b border-slate-200 pb-3">
-        <div className="flex flex-wrap items-end gap-x-3 gap-y-2">
+    <div className="w-full min-w-0">
+      <div className="min-h-[84px] border-b border-slate-200 pb-3">
+        <div className="flex min-h-[68px] flex-wrap items-end gap-x-3 gap-y-2">
           <span className="text-[30px] font-semibold tracking-[-0.05em] text-slate-900 sm:text-[34px]">
             {formatVnd(activeVariant.price)}
           </span>
@@ -137,18 +164,53 @@ export function BuyPanel({
       </div>
 
       <div className="mt-4">
-        <h2 className="text-[15px] font-semibold text-slate-900">Thời gian sử dụng</h2>
+        <h2 className="text-[15px] font-semibold text-slate-900">Hình thức</h2>
       </div>
 
-      <div className="mt-2.5 flex flex-wrap gap-2">
-        {orderedVariants.map((v) => {
+      <div className="mt-2 flex flex-wrap gap-2">
+        {fulfillmentOptions.map((v) => {
+          const selectedFulfillment = v.fulfillmentType === selectedFulfillmentType;
+          const groupVariants = orderedVariants.filter((variant) => variant.fulfillmentType === v.fulfillmentType);
+          const soldOut = groupVariants.every((variant) => variant.status === "out_of_stock");
+          return (
+            <button
+              type="button"
+              key={v.fulfillmentType}
+              onClick={() => {
+                const firstVariant =
+                  groupVariants.find((variant) => variant.status !== "out_of_stock") ?? groupVariants[0];
+                if (!firstVariant) return;
+                setSelectedId(firstVariant.id);
+                setCartNotice(null);
+              }}
+              disabled={soldOut}
+              className={cn(
+                "inline-flex min-h-10 w-auto max-w-full cursor-pointer items-center whitespace-nowrap rounded-xl border px-3 py-2 text-left text-[13px] font-medium transition",
+                selectedFulfillment
+                  ? "border-[#3b82f6] bg-[#3b82f6] text-white shadow-[0_10px_24px_rgba(59,130,246,0.24)]"
+                  : "border-slate-300 bg-white text-slate-700 hover:border-slate-400",
+                soldOut && "opacity-75",
+              )}
+            >
+              {getVariantFulfillmentBadgeLabel(v)}
+            </button>
+          );
+        })}
+      </div>
+
+      <div className="mt-3">
+        <h2 className="text-[15px] font-semibold text-slate-900">Biến thể</h2>
+      </div>
+
+      <div className="mt-2 flex flex-wrap gap-2">
+        {variantsForFulfillment.map((v) => {
           const selectedVariant = v.id === selectedId;
           const soldOut = v.status === "out_of_stock";
           return (
             <label
               key={v.id}
               className={cn(
-                "inline-flex cursor-pointer rounded-xl border px-3.5 py-2 text-[14px] font-medium leading-none transition sm:px-4 sm:py-2.5 sm:text-[15px]",
+                "inline-flex min-h-10 w-auto max-w-full cursor-pointer items-center whitespace-nowrap rounded-xl border px-3 py-2 text-[13px] font-medium transition",
                 selectedVariant
                   ? "border-[#3b82f6] bg-[#3b82f6] text-white shadow-[0_10px_24px_rgba(59,130,246,0.24)]"
                   : "border-slate-300 bg-white text-slate-700 hover:border-slate-400",
@@ -166,7 +228,7 @@ export function BuyPanel({
                 disabled={soldOut}
                 className="sr-only"
               />
-              <span>{v.name}</span>
+              <span className="leading-none">{getVariantStorefrontOptionLabel(v)}</span>
             </label>
           );
         })}
@@ -202,13 +264,15 @@ export function BuyPanel({
       )}
 
       {error && <p className="mt-2.5 text-sm text-red-600">{error}</p>}
-      {cartNotice && <p className="mt-2.5 text-sm text-sky-700">{cartNotice}</p>}
+      <div className="mt-2.5 min-h-6">
+        {cartNotice ? <p className="text-sm text-sky-700">{cartNotice}</p> : null}
+      </div>
 
-      <div className="mt-4 grid gap-2.5 sm:grid-cols-2">
+      <div className="mt-4 flex flex-wrap items-center gap-2.5">
         <button
           onClick={buy}
           disabled={loading || selected.status === "out_of_stock"}
-          className="inline-flex items-center justify-center gap-2.5 rounded-[18px] bg-[linear-gradient(180deg,#49a3ff_0%,#2563eb_100%)] px-5 py-3 text-base font-semibold text-white shadow-[0_10px_0_rgba(29,78,216,0.16),0_14px_26px_rgba(59,130,246,0.24)] transition hover:translate-y-0.5 hover:shadow-[0_8px_0_rgba(29,78,216,0.16),0_12px_22px_rgba(59,130,246,0.2)] disabled:translate-y-0 disabled:opacity-50"
+          className="inline-flex min-h-[52px] w-auto items-center justify-center gap-2.5 whitespace-nowrap rounded-[18px] bg-[linear-gradient(180deg,#49a3ff_0%,#2563eb_100%)] px-8 py-3 text-base font-semibold text-white shadow-[0_10px_0_rgba(29,78,216,0.16),0_14px_26px_rgba(59,130,246,0.24)] transition hover:translate-y-0.5 hover:shadow-[0_8px_0_rgba(29,78,216,0.16),0_12px_22px_rgba(59,130,246,0.2)] disabled:translate-y-0 disabled:opacity-50"
         >
           <WalletCards className="h-4.5 w-4.5" />
           {selected.status === "out_of_stock" ? "Tạm hết hàng" : loading ? "Đang xử lý..." : "Mua ngay"}
@@ -218,10 +282,15 @@ export function BuyPanel({
           type="button"
           onClick={addToCart}
           disabled={selected.status === "out_of_stock"}
-          className="inline-flex items-center justify-center gap-2.5 rounded-[18px] border-2 border-[#60a5fa] bg-white px-5 py-3 text-base font-semibold text-[#2563eb] transition hover:border-[#3b82f6] hover:bg-sky-50/40 disabled:opacity-50"
+          className={cn(
+            "inline-flex min-h-[52px] w-auto items-center justify-center gap-2.5 whitespace-nowrap rounded-[18px] border-2 px-8 py-3 text-base font-semibold transition duration-300 disabled:opacity-50",
+            justAdded
+              ? "scale-[1.03] animate-pulse border-emerald-400 bg-emerald-50 text-emerald-700 ring-4 ring-emerald-100 shadow-[0_12px_28px_rgba(16,185,129,0.18)]"
+              : "border-[#60a5fa] bg-white text-[#2563eb] hover:-translate-y-0.5 hover:border-[#3b82f6] hover:bg-sky-50/40 hover:shadow-[0_10px_22px_rgba(59,130,246,0.12)]",
+          )}
         >
           <ShoppingCart className="h-4.5 w-4.5" />
-          Thêm vào giỏ hàng
+          <span className="whitespace-nowrap">{justAdded ? "Đã thêm vào giỏ" : "Thêm vào giỏ hàng"}</span>
         </button>
       </div>
     </div>

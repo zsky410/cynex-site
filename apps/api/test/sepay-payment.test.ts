@@ -11,6 +11,12 @@ import { PaymentService } from "../src/payment/payment.service";
 import { WalletService } from "../src/wallet/wallet.service";
 import { WebhookController } from "../src/payment/webhook.controller";
 
+function createIsolatedConfig(values: Record<string, string>) {
+  const config = new ConfigService(values);
+  (config as any).skipProcessEnv = true;
+  return config;
+}
+
 function createPaymentService(prisma: PrismaClient, config: ConfigService) {
   const wallet = new WalletService(prisma as any);
   const sepayCalls: Array<{ paymentCode: string; amount: number }> = [];
@@ -57,7 +63,7 @@ test("shared enums expose sepay provider", () => {
 });
 
 test("sepay service builds bank transfer payload from payment code", () => {
-  const config = new ConfigService({
+  const config = createIsolatedConfig({
     SEPAY_BANK_NAME: "MBBank",
     SEPAY_BANK_ACCOUNT: "0123456789",
     SEPAY_ACCOUNT_HOLDER: "CYNEX COMPANY",
@@ -76,11 +82,18 @@ test("sepay service builds bank transfer payload from payment code", () => {
   assert.equal(payload.accountHolder, "CYNEX COMPANY");
   assert.equal(payload.amount, 150000);
   assert.equal(payload.transferContent, "SEP123456");
-  assert.match(payload.qrCode, /SEP123456/);
+  const qrUrl = new URL(payload.qrCode);
+  assert.equal(qrUrl.origin, "https://vietqr.app");
+  assert.equal(qrUrl.pathname, "/img");
+  assert.equal(qrUrl.searchParams.get("acc"), "0123456789");
+  assert.equal(qrUrl.searchParams.get("bank"), "MBBank");
+  assert.equal(qrUrl.searchParams.get("amount"), "150000");
+  assert.equal(qrUrl.searchParams.get("des"), "SEP123456");
+  assert.equal(qrUrl.searchParams.get("template"), "compact");
 });
 
 test("sepay service throws when bank config is incomplete", () => {
-  const config = new ConfigService({
+  const config = createIsolatedConfig({
     SEPAY_BANK_NAME: "MBBank",
     SEPAY_ACCOUNT_HOLDER: "CYNEX COMPANY",
   });
@@ -98,7 +111,7 @@ test("sepay service throws when bank config is incomplete", () => {
 });
 
 test("sepay service validates webhook secret", () => {
-  const config = new ConfigService({
+  const config = createIsolatedConfig({
     SEPAY_WEBHOOK_SECRET: "secret",
   });
   const service = new SepayService(config);
@@ -199,6 +212,9 @@ test("createOrderPayment creates a new sepay payment for each attempt", async ()
     assert.equal(first.accountHolder, "CYNEX COMPANY");
     assert.equal(first.amount, 42000);
     assert.equal(first.transferContent, first.paymentCode);
+    assert.ok(first.expiredAt);
+    assert.ok(new Date(first.expiredAt).getTime() > Date.now() + 9 * 60 * 1000);
+    assert.ok(new Date(first.expiredAt).getTime() <= Date.now() + 10 * 60 * 1000 + 5_000);
     assert.match(first.qrCode, new RegExp(first.paymentCode));
 
     assert.equal(second.bankName, "MBBank");
@@ -224,6 +240,88 @@ test("createOrderPayment creates a new sepay payment for each attempt", async ()
     assert.notEqual(payments[0]?.paymentCode, payments[1]?.paymentCode);
     assert.equal(payments[0]?.paymentCode, first.paymentCode);
     assert.equal(payments[1]?.paymentCode, second.paymentCode);
+    assert.ok(payments[1]?.expiredAt);
+  } finally {
+    await prisma.payment.deleteMany({ where: { orderId: order.id } });
+    await prisma.orderFulfillment.deleteMany({ where: { orderItem: { orderId: order.id } } });
+    await prisma.orderItem.deleteMany({ where: { orderId: order.id } });
+    await prisma.order.delete({ where: { id: order.id } });
+    await prisma.user.delete({ where: { id: user.id } });
+    await prisma.$disconnect();
+  }
+});
+
+test("expired sepay payment is cancelled and does not settle order", async () => {
+  const prisma = new PrismaClient();
+  const wallet = new WalletService(prisma as any);
+  let emailCalls = 0;
+  const queueStub = {
+    enqueueEmail: async () => {
+      emailCalls += 1;
+    },
+  };
+  const config = new ConfigService({
+    SEPAY_BANK_NAME: "MBBank",
+    SEPAY_BANK_ACCOUNT: "0123456789",
+    SEPAY_ACCOUNT_HOLDER: "CYNEX COMPANY",
+    SEPAY_WEBHOOK_SECRET: "secret",
+  });
+  const paymentService = new PaymentService(
+    prisma as any,
+    new SepayService(config) as any,
+    queueStub as any,
+    config as any,
+    wallet,
+  );
+
+  const user = await prisma.user.create({
+    data: { email: `expired-payment-${Date.now()}@test.com`, passwordHash: "x" },
+  });
+  const variant = await prisma.productVariant.findFirstOrThrow();
+  const order = await prisma.order.create({
+    data: {
+      orderCode: `EXP-${Date.now()}`,
+      userId: user.id,
+      totalAmount: 99000,
+      items: {
+        create: {
+          productId: variant.productId,
+          productVariantId: variant.id,
+          quantity: 1,
+          unitPrice: 99000,
+          totalPrice: 99000,
+          fulfillmentType: variant.fulfillmentType,
+          fulfillment: { create: { fulfillmentType: variant.fulfillmentType } },
+        },
+      },
+    },
+  });
+  const payment = await prisma.payment.create({
+    data: {
+      paymentCode: `SEPEXP${Date.now()}`,
+      orderId: order.id,
+      userId: user.id,
+      amount: 99000,
+      provider: "sepay",
+      status: "pending",
+      expiredAt: new Date(Date.now() - 1000),
+    },
+  });
+
+  try {
+    assert.equal(await paymentService.findPendingPayment(payment.paymentCode), null);
+    const result = await paymentService.markPaid(payment.paymentCode, "txn-expired", { expired: true });
+
+    assert.deepEqual(result, { handled: true, duplicate: true });
+    assert.equal(emailCalls, 0);
+
+    const freshPayment = await prisma.payment.findUniqueOrThrow({ where: { id: payment.id } });
+    assert.equal(freshPayment.status, "cancelled");
+    assert.equal(freshPayment.paidAt, null);
+
+    const freshOrder = await prisma.order.findUniqueOrThrow({ where: { id: order.id } });
+    assert.equal(freshOrder.paymentStatus, "pending");
+    assert.equal(freshOrder.fulfillmentStatus, "waiting_payment");
   } finally {
     await prisma.payment.deleteMany({ where: { orderId: order.id } });
     await prisma.orderFulfillment.deleteMany({ where: { orderItem: { orderId: order.id } } });
@@ -285,6 +383,35 @@ test("sepay webhook rejects amount mismatch", async () => {
 
   assert.deepEqual(result, { success: false });
   assert.equal(markPaidCalls, 0);
+});
+
+test("sepay webhook accepts Authorization Apikey header", async () => {
+  let markPaidCalls = 0;
+  const controller = new WebhookController(
+    new SepayService(
+      new ConfigService({
+        SEPAY_BANK_NAME: "MBBank",
+        SEPAY_BANK_ACCOUNT: "0123456789",
+        SEPAY_ACCOUNT_HOLDER: "CYNEX COMPANY",
+        SEPAY_WEBHOOK_SECRET: "secret",
+      }),
+    ),
+    {
+      findPendingPayment: async () => ({ id: "p1", amount: 1000 }),
+      markPaid: async () => {
+        markPaidCalls += 1;
+        return { handled: true };
+      },
+    } as any,
+  );
+
+  const result = await controller.sepayWebhook(
+    { authorization: "Apikey secret" } as any,
+    { transferContent: "SEP123", amount: 1000, transactionId: "txn-1" },
+  );
+
+  assert.deepEqual(result, { success: true, handled: true });
+  assert.equal(markPaidCalls, 1);
 });
 
 test("sepay webhook marks an order payment as paid", async () => {

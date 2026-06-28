@@ -116,10 +116,12 @@ export class AdminSourceOrdersController {
   @Patch(":id")
   async update(@CurrentAdmin() admin: AuthAdmin, @Param("id") id: string, @Body() b: Record<string, any>) {
     await this.assertAdminFileRefs(admin.id, b);
+    const previous = await this.prisma.sourceOrder.findUniqueOrThrow({ where: { id } });
     const row = await this.prisma.sourceOrder.update({
       where: { id },
       data: mapBody(b),
     });
+    await this.files.deleteUnreferencedFiles(difference(fileIdsForSourceOrder(previous), fileIdsForSourceOrder(row)));
     return { data: await this.serialize(row, false) };
   }
 
@@ -130,7 +132,10 @@ export class AdminSourceOrdersController {
       throwDeleteBlocked(id, preflight.blockingDependencies);
     }
 
-    return { data: await this.prisma.sourceOrder.delete({ where: { id } }) };
+    const existing = await this.prisma.sourceOrder.findUniqueOrThrow({ where: { id } });
+    const deleted = await this.prisma.sourceOrder.delete({ where: { id } });
+    await this.files.deleteUnreferencedFiles(fileIdsForSourceOrder(existing));
+    return { data: deleted };
   }
 
   private async assertAdminFileRefs(adminId: string, body: Record<string, any>) {
@@ -153,4 +158,15 @@ export class AdminSourceOrdersController {
     };
     return includeIntegrityWarnings ? { ...base, integrityWarnings: this.integrity.getSourceOrderWarnings(row) } : base;
   }
+}
+
+function fileIdsForSourceOrder(sourceOrder: { proofFileIds?: unknown }) {
+  return Array.isArray(sourceOrder.proofFileIds)
+    ? sourceOrder.proofFileIds.filter((value): value is string => typeof value === "string" && value.length > 0)
+    : [];
+}
+
+function difference(before: string[], after: string[]) {
+  const afterSet = new Set(after);
+  return before.filter((id) => !afterSet.has(id));
 }

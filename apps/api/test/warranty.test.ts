@@ -4,7 +4,11 @@ import { PrismaClient, type WarrantyCase } from "@cynex/db";
 import { WarrantyService } from "../src/warranty/warranty.service";
 
 const prisma = new PrismaClient();
-const service = new WarrantyService(prisma as any);
+const files = {
+  assertUserOwnsFiles: async () => undefined,
+  resolveFilesForUser: async () => [],
+};
+const service = new WarrantyService(prisma as any, files as any);
 
 after(async () => {
   await prisma.$disconnect();

@@ -49,6 +49,7 @@ export const adminDashboardRoute: AdminNavItem = {
 };
 
 const resourceIcons: Record<ResourceConfigKey, ComponentType> = {
+  categories: AppstoreOutlined,
   products: AppstoreOutlined,
   variants: ToolOutlined,
   orders: ShoppingCartOutlined,
@@ -68,7 +69,7 @@ const groupedResourceItems = shellGroupOrder.map((groupKey) => ({
   key: groupKey,
   label: resourceGroupLabels[groupKey],
   items: resourceConfigList
-    .filter((config) => config.shellGroup === groupKey)
+    .filter((config) => config.shellGroup === groupKey && !config.hiddenInNavigation)
     .map((config) => ({
       key: config.key,
       path: config.shellPath,

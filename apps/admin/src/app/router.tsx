@@ -5,10 +5,10 @@ import LoginPage from "../features/auth/LoginPage";
 import { RequireAuth } from "../features/auth/RequireAuth";
 import { AdminLayout } from "../components/layout/AdminLayout";
 import DashboardPage from "../features/dashboard/DashboardPage";
+import CategoryFormPage from "../features/categories/CategoryFormPage";
+import CategoryListPage from "../features/categories/CategoryListPage";
 import ProductFormPage from "../features/products/ProductFormPage";
 import ProductListPage from "../features/products/ProductListPage";
-import VariantFormPage from "../features/variants/VariantFormPage";
-import VariantListPage from "../features/variants/VariantListPage";
 import OrderListPage from "../features/orders/OrderListPage";
 import OrderDetailPage from "../features/orders/OrderDetailPage";
 import UserListPage from "../features/users/UserListPage";
@@ -51,6 +51,18 @@ export const router = createBrowserRouter([
             element: <DashboardPage />,
           },
           {
+            path: "categories",
+            element: <CategoryListPage />,
+          },
+          {
+            path: "categories/new",
+            element: <CategoryFormPage />,
+          },
+          {
+            path: "categories/:categoryId/edit",
+            element: <CategoryFormPage />,
+          },
+          {
             path: "products",
             element: <ProductListPage />,
           },
@@ -64,15 +76,15 @@ export const router = createBrowserRouter([
           },
           {
             path: "variants",
-            element: <VariantListPage />,
+            element: <Navigate to="/shell/products" replace />,
           },
           {
             path: "variants/new",
-            element: <VariantFormPage />,
+            element: <Navigate to="/shell/products" replace />,
           },
           {
             path: "variants/:variantId/edit",
-            element: <VariantFormPage />,
+            element: <Navigate to="/shell/products" replace />,
           },
           {
             path: "orders",

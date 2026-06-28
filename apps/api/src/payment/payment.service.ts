@@ -18,6 +18,8 @@ function genSepayPaymentCode(): string {
     .padStart(3, "0")}`;
 }
 
+const PAYMENT_SESSION_TTL_MS = 10 * 60 * 1000;
+
 @Injectable()
 export class PaymentService {
   private readonly logger = new Logger(PaymentService.name);
@@ -32,6 +34,7 @@ export class PaymentService {
 
   async createDeposit(userId: string, amount: number) {
     const paymentCode = genSepayPaymentCode();
+    const expiredAt = new Date(Date.now() + PAYMENT_SESSION_TTL_MS);
     const payload = this.sepay.createPaymentPayload({
       paymentCode,
       amount,
@@ -59,6 +62,7 @@ export class PaymentService {
           isDeposit: true,
           status: "pending",
           qrCode: payload.qrCode,
+          expiredAt,
         },
       });
     });
@@ -66,6 +70,7 @@ export class PaymentService {
     return {
       ...payload,
       paymentCode: payment.paymentCode,
+      expiredAt: payment.expiredAt?.toISOString(),
     };
   }
 
@@ -78,6 +83,7 @@ export class PaymentService {
     }
 
     const paymentCode = genSepayPaymentCode();
+    const expiredAt = new Date(Date.now() + PAYMENT_SESSION_TTL_MS);
     const payload = this.sepay.createPaymentPayload({
       paymentCode,
       amount: order.totalAmount,
@@ -104,6 +110,7 @@ export class PaymentService {
           provider: "sepay",
           status: "pending",
           qrCode: payload.qrCode,
+          expiredAt,
         },
       });
     });
@@ -111,13 +118,18 @@ export class PaymentService {
     return {
       ...payload,
       paymentCode: payment.paymentCode,
+      expiredAt: payment.expiredAt?.toISOString(),
     };
   }
 
   // Idempotent: a duplicate webhook for an already-paid payment is a no-op.
   async findPendingPayment(paymentCode: string) {
     return this.prisma.payment.findFirst({
-      where: { paymentCode, status: "pending" },
+      where: {
+        paymentCode,
+        status: "pending",
+        OR: [{ expiredAt: null }, { expiredAt: { gt: new Date() } }],
+      },
     });
   }
 
@@ -132,11 +144,25 @@ export class PaymentService {
       return { handled: false };
     }
     if (payment.status !== "pending") return { handled: true, duplicate: true };
+    if (isExpired(payment.expiredAt)) {
+      await this.prisma.payment.update({
+        where: { id: payment.id },
+        data: { status: "cancelled" },
+      });
+      return { handled: true, duplicate: true };
+    }
 
     let didTransition = false;
     await this.prisma.$transaction(async (tx) => {
       const fresh = await tx.payment.findUnique({ where: { id: payment.id } });
       if (!fresh || fresh.status !== "pending") return;
+      if (isExpired(fresh.expiredAt)) {
+        await tx.payment.update({
+          where: { id: payment.id },
+          data: { status: "cancelled" },
+        });
+        return;
+      }
 
       await tx.payment.update({
         where: { id: payment.id },
@@ -228,4 +254,8 @@ export class PaymentService {
       );
     }
   }
+}
+
+function isExpired(expiredAt: Date | null): boolean {
+  return Boolean(expiredAt && expiredAt.getTime() <= Date.now());
 }

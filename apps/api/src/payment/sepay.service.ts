@@ -41,17 +41,17 @@ export class SepayService {
     }
 
     const transferContent = input.paymentCode;
-    const qrCode =
-      `bank=${encodeURIComponent(bankName)}` +
-      `&account=${encodeURIComponent(bankAccount)}` +
-      `&amount=${input.amount}` +
-      `&content=${encodeURIComponent(transferContent)}` +
-      `&template=${encodeURIComponent(qrTemplate)}`;
+    const qrUrl = new URL("https://vietqr.app/img");
+    qrUrl.searchParams.set("acc", bankAccount);
+    qrUrl.searchParams.set("bank", bankName);
+    qrUrl.searchParams.set("amount", String(input.amount));
+    qrUrl.searchParams.set("des", transferContent);
+    qrUrl.searchParams.set("template", qrTemplate);
 
     return {
       paymentCode: input.paymentCode,
       amount: input.amount,
-      qrCode,
+      qrCode: qrUrl.toString(),
       bankName,
       bankAccount,
       accountHolder,

@@ -1,5 +1,6 @@
 export const labels = {
   dashboard: "Tổng quan",
+  categories: "Danh mục",
   products: "Sản phẩm",
   variants: "Biến thể",
   orders: "Đơn hàng",

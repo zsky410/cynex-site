@@ -15,6 +15,8 @@ describe("admin router coverage", () => {
 
   it("contains expected create, edit, and show routes based on resource capabilities", () => {
     const expectations = [
+      { path: 'path: "categories/new"' },
+      { path: 'path: "categories/:categoryId/edit"' },
       { path: 'path: "products/new"' },
       { path: 'path: "products/:productId/edit"' },
       { path: 'path: "variants/new"' },

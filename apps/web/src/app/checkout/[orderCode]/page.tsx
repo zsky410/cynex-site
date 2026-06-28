@@ -14,11 +14,12 @@ import {
   UserRound,
   WalletCards,
 } from "lucide-react";
-import {
-  BankTransferInstructions,
-  type BankTransferPayment,
-} from "@/components/payments/BankTransferInstructions";
 import { apiFetch, ApiError, getToken } from "@/lib/api";
+import {
+  getConfiguredCustomerFields,
+  validateCustomerInput,
+} from "@/components/buy-panel-customer-input";
+import { PremiumFooter, PremiumHeader } from "@/components/storefront/PremiumChrome";
 import { cn, formatVnd } from "@/lib/utils";
 
 interface Order {
@@ -31,7 +32,12 @@ interface Order {
     totalPrice: number;
     customerInput?: Record<string, unknown> | null;
     product: { name: string; slug: string };
-    variant: { name: string; durationDays?: number | null };
+    variant: {
+      name: string;
+      durationDays?: number | null;
+      requiresCustomerInput: boolean;
+      customerInputSchema?: { fields?: Array<{ name: string; label: string; type?: string; required?: boolean; placeholder?: string }> } | null;
+    };
   }>;
 }
 
@@ -68,6 +74,32 @@ function formatDurationLabel(name: string, durationDays?: number | null): string
   return `${durationDays} ngày`;
 }
 
+function buildEditableCustomerFields(
+  schema: { fields?: Array<{ name: string; label: string; type?: string; required?: boolean; placeholder?: string }> } | null | undefined,
+) {
+  const configured = getConfiguredCustomerFields(schema);
+  if (configured.length) return configured;
+  return [
+    { name: "name", label: "Người nhận", required: true, placeholder: "Nhập tên người nhận" },
+    { name: "email", label: "Email nhận thông tin dịch vụ", type: "email", required: true, placeholder: "name@company.com" },
+    { name: "phone", label: "Số điện thoại", type: "tel", required: false, placeholder: "Không bắt buộc" },
+  ];
+}
+
+function customerFieldPriority(name: string) {
+  if (/name|recipient|full/i.test(name)) return 0;
+  if (/phone|mobile|tel/i.test(name)) return 1;
+  if (/email|mail/i.test(name)) return 2;
+  return 3;
+}
+
+function customerFieldLabel(field: { name: string; label: string }) {
+  if (/name|recipient|full/i.test(field.name)) return "Tên";
+  if (/phone|mobile|tel/i.test(field.name)) return "SĐT";
+  if (/email|mail/i.test(field.name)) return "Email";
+  return field.label;
+}
+
 export default function CheckoutPage({ params }: { params: Promise<{ orderCode: string }> }) {
   const { orderCode } = use(params);
   const router = useRouter();
@@ -76,7 +108,9 @@ export default function CheckoutPage({ params }: { params: Promise<{ orderCode: 
   const [error, setError] = useState<string | null>(null);
   const [selectedMethod, setSelectedMethod] = useState<PaymentMethod>("sepay");
   const [busyMethod, setBusyMethod] = useState<PaymentMethod | null>(null);
-  const [transferPayment, setTransferPayment] = useState<BankTransferPayment | null>(null);
+  const [draftCustomerInput, setDraftCustomerInput] = useState<Record<string, string>>({});
+  const [saveInfoError, setSaveInfoError] = useState<string | null>(null);
+  const [savingInfo, setSavingInfo] = useState(false);
 
   useEffect(() => {
     if (!getToken()) {
@@ -91,6 +125,15 @@ export default function CheckoutPage({ params }: { params: Promise<{ orderCode: 
       .then(([orderRes, meRes]) => {
         setOrder(orderRes);
         setProfile(meRes);
+        const currentInput = toRecord(orderRes.items[0]?.customerInput);
+        const nextDraft: Record<string, string> = {};
+        for (const [key, value] of Object.entries(currentInput)) {
+          nextDraft[key] = typeof value === "string" ? value : "";
+        }
+        nextDraft.name ??= findField(currentInput, [/name/i, /recipient/i, /full/i]) ?? meRes?.name ?? "";
+        nextDraft.email ??= findField(currentInput, [/email/i, /mail/i]) ?? meRes?.email ?? "";
+        nextDraft.phone ??= findField(currentInput, [/phone/i, /mobile/i, /tel/i]) ?? "";
+        setDraftCustomerInput(nextDraft);
       })
       .catch((e) => setError(e instanceof ApiError ? e.message : "Không tải được đơn"));
   }, [orderCode, router]);
@@ -103,16 +146,7 @@ export default function CheckoutPage({ params }: { params: Promise<{ orderCode: 
   }, [order?.totalAmount, profile]);
 
   async function paySepay() {
-    setBusyMethod("sepay");
-    setError(null);
-    try {
-      const res = await apiFetch<BankTransferPayment>(`/orders/${orderCode}/pay`, { method: "POST" });
-      setTransferPayment(res);
-    } catch (e) {
-      setError(e instanceof ApiError ? e.message : "Không tạo được thanh toán");
-    } finally {
-      setBusyMethod(null);
-    }
+    router.push(`/checkout/${orderCode}/payment`);
   }
 
   async function payWallet() {
@@ -129,6 +163,8 @@ export default function CheckoutPage({ params }: { params: Promise<{ orderCode: 
   }
 
   async function submitPayment() {
+    const saved = await ensureCustomerInfoSaved();
+    if (!saved) return;
     if (selectedMethod === "wallet") {
       await payWallet();
       return;
@@ -136,16 +172,56 @@ export default function CheckoutPage({ params }: { params: Promise<{ orderCode: 
     await paySepay();
   }
 
+  async function saveCustomerInfo(nextDraft = draftCustomerInput) {
+    if (!order?.items[0]) return;
+    const fields = buildEditableCustomerFields(order.items[0].variant.customerInputSchema);
+    const validationError = validateCustomerInput(fields, nextDraft);
+    if (validationError) {
+      setSaveInfoError(validationError);
+      return false;
+    }
+
+    setSavingInfo(true);
+    setSaveInfoError(null);
+    try {
+      const updated = await apiFetch<Order>(`/orders/${orderCode}/customer-input`, {
+        method: "PATCH",
+        body: JSON.stringify({ customerInput: nextDraft }),
+      });
+      setOrder(updated);
+      return true;
+    } catch (e) {
+      setSaveInfoError(e instanceof ApiError ? e.message : "Không lưu được thông tin");
+      return false;
+    } finally {
+      setSavingInfo(false);
+    }
+  }
+
+  async function ensureCustomerInfoSaved() {
+    const currentInput: Record<string, string> = {
+      name: contactName,
+      email: contactEmail,
+      phone: contactPhone ?? "",
+      ...Object.fromEntries(Object.entries(customerInput).filter(([, value]) => typeof value === "string")),
+    };
+    const isDirty = Object.entries(draftCustomerInput).some(([key, value]) => (currentInput[key] ?? "") !== value);
+    if (!isDirty) return true;
+    return saveCustomerInfo();
+  }
+
   if (error && !order) return <p className="text-red-600">{error}</p>;
   if (!order) {
     return (
       <div className="min-h-screen bg-[#f5f7fc]">
+        <PremiumHeader />
         <div className="mx-auto flex max-w-[1180px] items-center justify-center px-5 py-24 lg:px-8">
           <div className="inline-flex items-center gap-3 rounded-full bg-white px-5 py-3 text-sm text-slate-500 shadow-sm">
             <LoaderCircle className="h-4 w-4 animate-spin text-sky-600" />
             Đang tải thông tin thanh toán...
           </div>
         </div>
+        <PremiumFooter />
       </div>
     );
   }
@@ -153,17 +229,7 @@ export default function CheckoutPage({ params }: { params: Promise<{ orderCode: 
   if (order.paymentStatus === "paid") {
     return (
       <div className="min-h-screen bg-[#f5f7fc]">
-        <div className="border-b border-slate-200/80 bg-white/90 backdrop-blur">
-          <div className="mx-auto flex max-w-[1180px] items-center justify-between px-5 py-5 lg:px-8">
-            <Link href="/" className="text-[21px] font-semibold tracking-[-0.04em] text-sky-900">
-              CYNEX
-            </Link>
-            <Link href={`/orders/${orderCode}`} className="inline-flex items-center gap-2 text-sm text-slate-600 transition hover:text-slate-900">
-              <ArrowLeft className="h-4 w-4" />
-              Về đơn hàng
-            </Link>
-          </div>
-        </div>
+        <PremiumHeader />
 
         <div className="mx-auto flex max-w-[760px] px-5 py-20 lg:px-8">
           <div className="w-full rounded-[28px] border border-emerald-100 bg-white p-8 shadow-[0_24px_80px_rgba(15,23,42,0.08)]">
@@ -183,6 +249,7 @@ export default function CheckoutPage({ params }: { params: Promise<{ orderCode: 
             </button>
           </div>
         </div>
+        <PremiumFooter />
       </div>
     );
   }
@@ -201,221 +268,185 @@ export default function CheckoutPage({ params }: { params: Promise<{ orderCode: 
   const walletBalance = profile?.walletBalance ?? 0;
   const walletSufficient = walletBalance >= order.totalAmount;
   const isBusy = busyMethod !== null;
+  const customerFields = buildEditableCustomerFields(primaryItem?.variant.customerInputSchema).sort(
+    (a, b) => customerFieldPriority(a.name) - customerFieldPriority(b.name),
+  );
   const actionLabel =
-    busyMethod === "sepay"
-      ? "Đang tạo mã QR..."
-      : busyMethod === "wallet"
+    busyMethod === "wallet"
         ? "Đang thanh toán bằng ví..."
         : selectedMethod === "wallet"
-          ? "Xác nhận & Thanh toán"
-          : transferPayment
-            ? "Tạo mã QR mới"
-            : "Xác nhận & Tạo QR";
+          ? "Tiếp tục & Thanh toán"
+          : "Tiếp tục đến thanh toán";
 
   return (
-    <div className="min-h-screen bg-[#f5f7fc] text-slate-950">
-      <div className="border-b border-slate-200/80 bg-white/90 backdrop-blur">
-        <div className="mx-auto flex max-w-[1180px] items-center justify-between px-5 py-5 lg:px-8">
-          <Link href="/" className="text-[21px] font-semibold tracking-[-0.04em] text-sky-900">
-            CYNEX
-          </Link>
-          <Link
-            href={`/orders/${orderCode}`}
-            className="inline-flex items-center gap-2 text-sm font-medium text-slate-600 transition hover:text-slate-900"
-          >
-            <ArrowLeft className="h-4 w-4" />
-            Hủy thanh toán
-          </Link>
-        </div>
-      </div>
+    <div className="home-shell min-h-screen text-slate-950">
+      <PremiumHeader />
 
-      <main className="mx-auto max-w-[1180px] px-5 pb-20 pt-16 lg:px-8">
-        <div className="grid items-start gap-8 xl:grid-cols-[minmax(0,1fr)_380px]">
-          <section className="space-y-8">
-            <div>
-              <h1 className="text-4xl font-semibold tracking-[-0.05em] text-slate-950 lg:text-[54px] lg:leading-[1.02]">
-                Hoàn tất đơn hàng
-              </h1>
-              <p className="mt-3 text-lg text-slate-500">
-                Vui lòng kiểm tra thông tin và chọn phương thức thanh toán.
-              </p>
-            </div>
-
-            <div className="rounded-[24px] border border-sky-100 bg-sky-100/80 px-6 py-5 text-sky-950">
-              <div className="flex items-start gap-4">
-                <div className="mt-0.5 flex h-9 w-9 items-center justify-center rounded-full bg-sky-700 text-white">
-                  <ShieldCheck className="h-5 w-5" />
-                </div>
-                <div>
-                  <p className="text-lg font-semibold">Lưu ý quan trọng</p>
-                  <p className="mt-1 text-[15px] leading-7 text-sky-900/80">
-                    Sau khi thanh toán thành công, đơn sẽ chuyển sang trạng thái chờ admin xử lý.
-                  </p>
-                </div>
+      <main className="mx-auto max-w-[1180px] px-5 pb-16 pt-10 lg:px-8">
+        <Link
+          href={`/orders/${orderCode}`}
+          className="mb-6 inline-flex items-center gap-2 text-sm font-medium text-slate-500 transition hover:text-sky-700"
+        >
+          <ArrowLeft className="h-4 w-4" />
+          Hủy thanh toán
+        </Link>
+        <div className="grid items-start gap-8 xl:grid-cols-[minmax(0,1fr)_360px] xl:gap-12">
+          <section className="min-w-0">
+            <div className="border-b border-slate-200/70 pb-5">
+              <div className="inline-flex items-center gap-2 rounded-full border border-slate-200/80 bg-white/70 px-4 py-2 text-sm text-slate-500">
+                <UserRound className="h-4 w-4 text-sky-700" />
+                Đơn #{order.orderCode}
               </div>
             </div>
 
-            <div className="rounded-[28px] border border-slate-200 bg-white p-6 shadow-[0_24px_80px_rgba(15,23,42,0.06)] lg:p-10">
-              <div className="flex items-center justify-between gap-4">
-                <div>
-                  <h2 className="text-[34px] font-semibold tracking-[-0.05em] text-slate-950">Thông tin nhận dịch vụ</h2>
-                  <p className="mt-2 text-sm text-slate-500">
-                    Thông tin này được dùng để xử lý đơn và gửi kết quả bàn giao.
-                  </p>
-                </div>
-                <div className="hidden items-center gap-2 rounded-full bg-slate-50 px-4 py-2 text-sm text-slate-500 sm:inline-flex">
-                  <UserRound className="h-4 w-4 text-sky-700" />
-                  Đơn #{order.orderCode}
-                </div>
+            <div className="mt-7 border-b border-slate-200/70 pb-7">
+              <div>
+                <h2 className="text-[24px] font-semibold tracking-[-0.04em] text-slate-950">Thông tin nhận hàng</h2>
               </div>
 
-              <div className="mt-8 grid gap-4 md:grid-cols-2">
-                <div className="rounded-[20px] border border-slate-200 bg-slate-50/80 p-5">
-                  <p className="text-xs font-medium uppercase tracking-[0.14em] text-slate-400">Người nhận</p>
-                  <p className="mt-2 text-[28px] font-semibold tracking-[-0.04em] text-slate-950">{contactName}</p>
-                </div>
-                <div className="rounded-[20px] border border-slate-200 bg-slate-50/80 p-5">
-                  <p className="text-xs font-medium uppercase tracking-[0.14em] text-slate-400">Số điện thoại</p>
-                  <p className="mt-2 text-[28px] font-semibold tracking-[-0.04em] text-slate-950">
-                    {contactPhone ?? "Không yêu cầu"}
-                  </p>
-                </div>
-                <div className="rounded-[20px] border border-slate-200 bg-slate-50/80 p-5 md:col-span-2">
-                  <p className="text-xs font-medium uppercase tracking-[0.14em] text-slate-400">Email nhận thông tin dịch vụ</p>
-                  <p className="mt-2 break-all text-[28px] font-semibold tracking-[-0.04em] text-slate-950">
-                    {contactEmail}
-                  </p>
-                </div>
-                {extraFields.length ? (
-                  <div className="rounded-[20px] border border-slate-200 bg-slate-50/80 p-5 md:col-span-2">
-                    <p className="text-xs font-medium uppercase tracking-[0.14em] text-slate-400">Thông tin bổ sung</p>
-                    <div className="mt-3 grid gap-3 md:grid-cols-2">
-                      {extraFields.map(([key, value]) => (
-                        <div key={key} className="rounded-2xl border border-white bg-white px-4 py-3 text-sm text-slate-600">
-                          <p className="font-medium capitalize text-slate-900">{key.replace(/[_-]+/g, " ")}</p>
-                          <p className="mt-1 break-words">{readString(value)}</p>
-                        </div>
-                      ))}
-                    </div>
+              <div className="mt-5 grid gap-4 md:grid-cols-2">
+                {customerFields.map((field) => (
+                  <div key={field.name} className={cn(/email|mail/i.test(field.name) ? "md:col-span-2" : "")}>
+                    <label className="text-[11px] font-medium uppercase tracking-[0.22em] text-slate-400">
+                      {customerFieldLabel(field)}
+                      {field.required ? <span className="ml-1 text-red-500">*</span> : null}
+                    </label>
+                    <input
+                      type={field.type === "email" || field.type === "password" || field.type === "tel" ? field.type : "text"}
+                      placeholder={field.placeholder ?? `Nhập ${field.label.toLowerCase()}`}
+                      value={draftCustomerInput[field.name] ?? ""}
+                      onChange={(e) => {
+                        const value = e.target.value;
+                        setDraftCustomerInput((current) => ({ ...current, [field.name]: value }));
+                      }}
+                      onBlur={() => {
+                        void ensureCustomerInfoSaved();
+                      }}
+                      className="mt-2 w-full rounded-2xl border border-slate-200/90 bg-white/88 px-4 py-3.5 text-[15px] text-slate-800 outline-none transition placeholder:text-slate-300 focus:border-sky-300 focus:bg-white"
+                    />
                   </div>
-                ) : null}
+                ))}
               </div>
-            </div>
-
-            <div className="rounded-[28px] border border-slate-200 bg-white p-6 shadow-[0_24px_80px_rgba(15,23,42,0.06)] lg:p-10">
-              <h2 className="text-[34px] font-semibold tracking-[-0.05em] text-slate-950">Phương thức thanh toán</h2>
-              <p className="mt-2 text-sm text-slate-500">
-                Mọi giao dịch được mã hóa và bảo mật an toàn 100%.
-              </p>
-
-              <div className="mt-8 space-y-4">
-                <button
-                  type="button"
-                  onClick={() => setSelectedMethod("sepay")}
-                  disabled={isBusy}
-                  className={cn(
-                    "flex w-full items-center justify-between rounded-[20px] border px-5 py-5 text-left transition",
-                    selectedMethod === "sepay"
-                      ? "border-sky-300 bg-sky-50 shadow-[0_0_0_1px_rgba(14,165,233,0.12)]"
-                      : "border-slate-200 bg-white hover:border-sky-200",
-                    isBusy && "cursor-not-allowed opacity-80",
-                  )}
-                >
-                  <span className="flex items-center gap-4">
-                    <span className="flex h-7 w-7 items-center justify-center rounded-full border-2 border-slate-300">
-                      <span
-                        className={cn(
-                          "h-3.5 w-3.5 rounded-full transition",
-                          selectedMethod === "sepay" ? "bg-sky-600" : "bg-transparent",
-                        )}
-                      />
-                    </span>
-                    <span>
-                      <span className="block text-lg font-semibold text-slate-950">Chuyển khoản SePay</span>
-                      <span className="mt-1 block text-sm text-slate-500">
-                        Quét QR hoặc chuyển khoản đúng nội dung để hệ thống tự xác nhận.
-                      </span>
-                    </span>
-                  </span>
-                  <Smartphone className="h-6 w-6 text-sky-700" />
-                </button>
-
-                <button
-                  type="button"
-                  onClick={() => {
-                    if (!walletSufficient) return;
-                    setSelectedMethod("wallet");
-                  }}
-                  disabled={isBusy}
-                  className={cn(
-                    "flex w-full items-center justify-between rounded-[20px] border px-5 py-5 text-left transition",
-                    selectedMethod === "wallet"
-                      ? "border-sky-300 bg-sky-50 shadow-[0_0_0_1px_rgba(14,165,233,0.12)]"
-                      : "border-slate-200 bg-white hover:border-sky-200",
-                    !walletSufficient && "border-slate-200 bg-slate-50/80",
-                    isBusy && "cursor-not-allowed opacity-80",
-                  )}
-                >
-                  <span className="flex items-center gap-4">
-                    <span className="flex h-7 w-7 items-center justify-center rounded-full border-2 border-slate-300">
-                      <span
-                        className={cn(
-                          "h-3.5 w-3.5 rounded-full transition",
-                          selectedMethod === "wallet" ? "bg-sky-600" : "bg-transparent",
-                        )}
-                      />
-                    </span>
-                    <span>
-                      <span className="flex flex-wrap items-center gap-2 text-lg font-semibold text-slate-950">
-                        Ví CYNEX
-                        <span className="rounded-full bg-sky-100 px-2.5 py-1 text-xs font-medium text-sky-700">Gợi ý</span>
-                      </span>
-                      <span className="mt-1 block text-sm text-slate-500">
-                        Số dư hiện tại: {formatVnd(walletBalance)}
-                      </span>
-                      {!walletSufficient ? (
-                        <span className="mt-1 block text-sm font-medium text-amber-600">
-                          Số dư chưa đủ. Nạp thêm trong trang Ví để dùng phương thức này.
-                        </span>
-                      ) : null}
-                    </span>
-                  </span>
-                  <WalletCards className="h-6 w-6 text-sky-700" />
-                </button>
+              <div className="mt-4 min-h-5 text-sm text-slate-500">
+                {savingInfo ? "Đang lưu thay đổi..." : null}
+                {!savingInfo && saveInfoError ? <span className="text-red-600">{saveInfoError}</span> : null}
               </div>
 
-              {transferPayment ? (
-                <div className="mt-6">
-                  <BankTransferInstructions payment={transferPayment} />
+              {extraFields.length ? (
+                <div className="mt-5 border-t border-slate-200/70 pt-5">
+                  <p className="text-[11px] font-medium uppercase tracking-[0.22em] text-slate-400">Thông tin bổ sung</p>
+                  <div className="mt-4 grid gap-4 md:grid-cols-2">
+                    {extraFields.map(([key, value]) => (
+                      <div key={key} className="rounded-2xl border border-slate-200/80 bg-white/75 px-4 py-3 text-sm text-slate-600">
+                        <p className="font-medium capitalize text-slate-900">{key.replace(/[_-]+/g, " ")}</p>
+                        <p className="mt-1 break-words">{readString(value)}</p>
+                      </div>
+                    ))}
+                  </div>
                 </div>
               ) : null}
+
+              <div className="mt-7">
+                <h2 className="text-[24px] font-semibold tracking-[-0.04em] text-slate-950">Phương thức thanh toán</h2>
+                <div className="mt-4 grid gap-4 md:grid-cols-2">
+                  <button
+                    type="button"
+                    onClick={() => setSelectedMethod("sepay")}
+                    disabled={isBusy}
+                    className={cn(
+                      "flex min-h-[128px] w-full items-start justify-between rounded-[22px] border px-5 py-5 text-left transition",
+                      selectedMethod === "sepay"
+                        ? "border-sky-300 bg-white"
+                        : "border-slate-200/90 bg-white/78 hover:border-sky-200",
+                      isBusy && "cursor-not-allowed opacity-80",
+                    )}
+                  >
+                    <span className="flex items-start gap-4">
+                      <span className="mt-1 flex h-6 w-6 items-center justify-center rounded-full border border-slate-300">
+                        <span
+                          className={cn(
+                            "h-3 w-3 rounded-full transition",
+                            selectedMethod === "sepay" ? "bg-sky-600" : "bg-transparent",
+                          )}
+                        />
+                      </span>
+                      <span>
+                        <span className="block text-[17px] font-semibold text-slate-950">Chuyển khoản SePay</span>
+                        <span className="mt-2 block text-sm leading-6 text-slate-500">Quét QR để thanh toán ở bước tiếp theo.</span>
+                      </span>
+                    </span>
+                    <Smartphone className="mt-1 h-5 w-5 shrink-0 text-sky-700" />
+                  </button>
+
+                  <button
+                    type="button"
+                    onClick={() => {
+                      if (!walletSufficient) return;
+                      setSelectedMethod("wallet");
+                    }}
+                    disabled={isBusy}
+                    className={cn(
+                      "flex min-h-[128px] w-full items-start justify-between rounded-[22px] border px-5 py-5 text-left transition",
+                      selectedMethod === "wallet"
+                        ? "border-sky-300 bg-white"
+                        : "border-slate-200/90 bg-white/78 hover:border-sky-200",
+                      !walletSufficient && "bg-slate-50/85",
+                      isBusy && "cursor-not-allowed opacity-80",
+                    )}
+                  >
+                    <span className="flex items-start gap-4">
+                      <span className="mt-1 flex h-6 w-6 items-center justify-center rounded-full border border-slate-300">
+                        <span
+                          className={cn(
+                            "h-3 w-3 rounded-full transition",
+                            selectedMethod === "wallet" ? "bg-sky-600" : "bg-transparent",
+                          )}
+                        />
+                      </span>
+                      <span>
+                        <span className="flex flex-wrap items-center gap-2 text-[17px] font-semibold text-slate-950">
+                          Ví CYNEX
+                          <span className="rounded-full bg-sky-100 px-2.5 py-1 text-[11px] font-medium text-sky-700">Gợi ý</span>
+                        </span>
+                        <span className="mt-2 block text-sm leading-6 text-slate-500">Số dư: {formatVnd(walletBalance)}</span>
+                        {!walletSufficient ? (
+                          <span className="mt-1 block text-sm font-medium text-amber-600">
+                            Số dư chưa đủ. Nạp thêm để thanh toán bằng ví.
+                          </span>
+                        ) : null}
+                      </span>
+                    </span>
+                    <WalletCards className="mt-1 h-5 w-5 shrink-0 text-sky-700" />
+                  </button>
+                </div>
+              </div>
             </div>
           </section>
 
           <aside className="xl:sticky xl:top-24">
-            <div className="rounded-[28px] border border-slate-200 bg-white p-6 shadow-[0_24px_80px_rgba(15,23,42,0.08)]">
-              <h2 className="text-[28px] font-semibold tracking-[-0.05em] text-slate-950">Tóm tắt đơn hàng</h2>
+            <div className="xl:border-l xl:border-slate-200/70 xl:pl-8">
+              <h2 className="text-[24px] font-semibold tracking-[-0.04em] text-slate-950">Tóm tắt đơn hàng</h2>
 
               <div className="mt-6 space-y-4">
                 {order.items.map((it) => (
                   <div key={it.id} className="flex items-start gap-4">
-                    <div className="flex h-16 w-16 shrink-0 items-center justify-center rounded-2xl bg-gradient-to-br from-slate-700 via-sky-900 to-slate-950 text-white shadow-[0_16px_30px_rgba(15,23,42,0.24)]">
-                      <CreditCard className="h-7 w-7" />
+                    <div className="flex h-14 w-14 shrink-0 items-center justify-center rounded-2xl bg-gradient-to-br from-slate-700 via-sky-900 to-slate-950 text-white">
+                      <CreditCard className="h-6 w-6" />
                     </div>
                     <div className="min-w-0 flex-1">
-                      <p className="text-[17px] font-semibold leading-6 text-slate-950">{it.product.name}</p>
+                      <p className="text-base font-semibold leading-6 text-slate-950">{it.product.name}</p>
                       <p className="mt-1 text-sm text-slate-500">{formatDurationLabel(it.variant.name, it.variant.durationDays)}</p>
                       <p className="mt-1 text-sm text-slate-400">Dịch vụ số</p>
                     </div>
                     <div className="text-right">
-                      <p className="text-xl font-semibold text-slate-950">{formatVnd(it.totalPrice)}</p>
+                      <p className="text-[18px] font-semibold text-slate-950">{formatVnd(it.totalPrice)}</p>
                       <p className="text-sm text-slate-500">x{it.quantity}</p>
                     </div>
                   </div>
                 ))}
               </div>
 
-              <div className="mt-6 border-t border-slate-200 pt-6 text-[17px] text-slate-600">
+              <div className="mt-6 border-t border-slate-200 pt-6 text-base text-slate-600">
                 <div className="flex items-center justify-between">
                   <span>Tạm tính</span>
                   <span>{formatVnd(order.totalAmount)}</span>
@@ -433,19 +464,19 @@ export default function CheckoutPage({ params }: { params: Promise<{ orderCode: 
               <div className="mt-6 border-t border-slate-200 pt-6">
                 <div className="flex items-end justify-between gap-4">
                   <div>
-                    <p className="text-[17px] font-semibold text-slate-950">Tổng cộng</p>
+                    <p className="text-base font-semibold text-slate-950">Tổng cộng</p>
                     <p className="mt-1 text-sm text-slate-500">Đã bao gồm VAT</p>
                   </div>
-                  <p className="text-[40px] font-semibold tracking-[-0.05em] text-sky-700">{formatVnd(order.totalAmount)}</p>
+                  <p className="text-[34px] font-semibold tracking-[-0.05em] text-sky-700">{formatVnd(order.totalAmount)}</p>
                 </div>
               </div>
 
               {error ? <p className="mt-5 rounded-2xl bg-red-50 px-4 py-3 text-sm text-red-600">{error}</p> : null}
 
               <button
-                onClick={submitPayment}
+                onClick={() => void submitPayment()}
                 disabled={isBusy || (selectedMethod === "wallet" && !walletSufficient)}
-                className="mt-6 inline-flex w-full items-center justify-center gap-3 rounded-[18px] bg-sky-700 px-6 py-4 text-lg font-semibold text-white shadow-[0_18px_40px_rgba(10,116,184,0.24)] transition hover:bg-sky-800 disabled:cursor-not-allowed disabled:opacity-50"
+                className="mt-6 inline-flex w-full items-center justify-center gap-3 rounded-[20px] bg-sky-700 px-6 py-4 text-lg font-semibold text-white transition hover:bg-sky-800 disabled:cursor-not-allowed disabled:opacity-50"
               >
                 {isBusy ? <LoaderCircle className="h-5 w-5 animate-spin" /> : <BadgeCheck className="h-5 w-5" />}
                 {actionLabel}
@@ -459,6 +490,7 @@ export default function CheckoutPage({ params }: { params: Promise<{ orderCode: 
           </aside>
         </div>
       </main>
+      <PremiumFooter />
     </div>
   );
 }

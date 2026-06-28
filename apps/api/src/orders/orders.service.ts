@@ -9,7 +9,12 @@ import type { Prisma } from "@cynex/db";
 import { PrismaService } from "../prisma/prisma.service";
 import { WalletService } from "../wallet/wallet.service";
 import { QueueService, EMAIL_JOB } from "../queue/queue.service";
-import { EmailType, decryptNullable, type CreateOrderDto } from "@cynex/shared";
+import {
+  EmailType,
+  decryptNullable,
+  type CreateOrderDto,
+  type UpdateOrderCustomerInputDto,
+} from "@cynex/shared";
 import { assertValidCustomerInput } from "./customer-input";
 
 @Injectable()
@@ -161,7 +166,15 @@ export class OrdersService {
       include: {
         items: {
           include: {
-            variant: { select: { name: true, durationDays: true, warrantyDays: true } },
+            variant: {
+              select: {
+                name: true,
+                durationDays: true,
+                warrantyDays: true,
+                requiresCustomerInput: true,
+                customerInputSchema: true,
+              },
+            },
             product: { select: { name: true, slug: true } },
             fulfillment: true,
           },
@@ -186,5 +199,44 @@ export class OrdersService {
       return { ...it, fulfillment: { ...rest, deliveredMessage } };
     });
     return { ...order, items };
+  }
+
+  async updateCustomerInput(userId: string, orderCode: string, dto: UpdateOrderCustomerInputDto) {
+    const order = await this.prisma.order.findUnique({
+      where: { orderCode },
+      include: {
+        items: {
+          include: {
+            variant: {
+              select: {
+                id: true,
+                requiresCustomerInput: true,
+                customerInputSchema: true,
+              },
+            },
+          },
+        },
+      },
+    });
+    if (!order) throw new NotFoundException("Đơn hàng không tồn tại");
+    if (order.userId !== userId) throw new ForbiddenException();
+    if (order.paymentStatus !== "pending") {
+      throw new BadRequestException("Chỉ có thể sửa thông tin khi đơn chưa thanh toán");
+    }
+
+    const targetItem = order.items[0];
+    if (targetItem?.variant?.requiresCustomerInput) {
+      assertValidCustomerInput(
+        targetItem.variant.customerInputSchema as { fields?: Array<Record<string, unknown>> } | null | undefined,
+        dto.customerInput,
+      );
+    }
+
+    await this.prisma.orderItem.update({
+      where: { id: targetItem.id },
+      data: { customerInput: dto.customerInput as Prisma.InputJsonValue },
+    });
+
+    return this.getByCode(userId, orderCode);
   }
 }

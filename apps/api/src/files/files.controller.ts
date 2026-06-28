@@ -1,6 +1,7 @@
 import {
   BadRequestException,
   Controller,
+  Delete,
   Get,
   Param,
   Post,
@@ -50,6 +51,11 @@ export class AdminFilesController {
   @UseInterceptors(uploadInterceptor)
   upload(@CurrentAdmin() admin: AuthAdmin, @UploadedFile() file?: UploadedMultipartFile) {
     return this.files.uploadForAdmin(admin.id, normalizeFile(file));
+  }
+
+  @Delete(":id")
+  delete(@CurrentAdmin() admin: AuthAdmin, @Param("id") id: string) {
+    return this.files.deleteAdminFile(admin.id, id);
   }
 
   @Get(":id/content")

@@ -1,6 +1,8 @@
-import { Button, Form, Input, InputNumber, Select, Space } from "antd";
+import { Button, Form, Input, Select, Space } from "antd";
 import type { FormInstance } from "antd/es/form";
+import { useEffect, useState } from "react";
 import { AdminFileUploadField, type AdminUploadedFile } from "../../components/files/AdminFileUploadField";
+import { listResource } from "../../lib/admin-api";
 import { getDisplayLabel } from "../../lib/display-labels";
 import { labels } from "../../lib/labels";
 
@@ -9,8 +11,7 @@ export type ProductPayload = {
   slug: string;
   shortDescription?: string;
   description?: string;
-  status: "draft" | "active" | "inactive" | "archived";
-  sortOrder: number;
+  status: "active" | "inactive";
   categoryId?: string;
   imageFileId?: string | null;
   guideFileIds?: string[];
@@ -27,10 +28,19 @@ export type ProductFormValues = Omit<ProductPayload, "imageFileId" | "guideFileI
   guideFiles?: AdminUploadedFile[];
 };
 
-const statusOptions = ["draft", "active", "inactive", "archived"].map((value) => ({
+const statusOptions = ["active", "inactive"].map((value) => ({
   value,
   label: getDisplayLabel(value),
 }));
+
+type CategoryOption = {
+  id: string;
+  name: string;
+};
+
+export function normalizeProductStatus(status: string | null | undefined): ProductPayload["status"] {
+  return status === "active" ? "active" : "inactive";
+}
 
 type ProductFormFieldsProps = {
   form: FormInstance<ProductFormValues>;
@@ -47,7 +57,6 @@ export function buildProductPayload(values: ProductFormValues): ProductPayload {
     shortDescription: values.shortDescription,
     description: values.description,
     status: values.status,
-    sortOrder: values.sortOrder,
     categoryId: values.categoryId,
     imageFileId: values.image?.id ?? null,
     guideFileIds: values.guideFiles?.map((file) => file.id) ?? [],
@@ -61,6 +70,30 @@ export function ProductFormFields({
   onCancel,
   onSlugChange,
 }: ProductFormFieldsProps) {
+  const [categoryOptions, setCategoryOptions] = useState<Array<{ value: string; label: string }>>([]);
+  const [loadingCategories, setLoadingCategories] = useState(true);
+
+  useEffect(() => {
+    setLoadingCategories(true);
+    listResource<CategoryOption>("categories", {
+      page: 1,
+      perPage: 200,
+      sort: "name",
+      order: "ASC",
+      filter: {},
+    })
+      .then((response) => {
+        setCategoryOptions(
+          response.data.map((category) => ({
+            value: category.id,
+            label: category.name,
+          })),
+        );
+      })
+      .catch(() => setCategoryOptions([]))
+      .finally(() => setLoadingCategories(false));
+  }, []);
+
   return (
     <Form<ProductFormValues> form={form} layout="vertical" onFinish={onFinish}>
       <Form.Item label="Tên sản phẩm" name="name" rules={[{ required: true, message: "Nhập tên sản phẩm" }]}>
@@ -78,11 +111,13 @@ export function ProductFormFields({
       <Form.Item label={labels.status} name="status">
         <Select options={statusOptions} />
       </Form.Item>
-      <Form.Item label="Thứ tự" name="sortOrder">
-        <InputNumber style={{ width: "100%" }} />
-      </Form.Item>
-      <Form.Item label="Category ID" name="categoryId">
-        <Input />
+      <Form.Item label={labels.categories} name="categoryId">
+        <Select
+          allowClear
+          loading={loadingCategories}
+          options={categoryOptions}
+          placeholder="Chọn danh mục"
+        />
       </Form.Item>
       <Form.Item label="Ảnh hiển thị sản phẩm" name="image">
         <AdminFileUploadField accept=".png,.jpg,.jpeg,.webp" />

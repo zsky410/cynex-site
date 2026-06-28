@@ -108,6 +108,12 @@ export function uploadAdminFile(file: File) {
   });
 }
 
+export function deleteAdminFile(fileId: string) {
+  return adminFetch<{ id: string }>(`/admin/files/${fileId}`, {
+    method: "DELETE",
+  });
+}
+
 export async function deleteManyResources(resource: string, ids: Array<string | number>) {
   const results = await Promise.allSettled(ids.map((id) => deleteResource(resource, id)));
 

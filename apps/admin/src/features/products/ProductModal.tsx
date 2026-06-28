@@ -1,16 +1,22 @@
-import { Card, Form, Modal } from "antd";
+import { Form, Modal } from "antd";
 import { useEffect, useState } from "react";
 import { AsyncState } from "../../components/common/AsyncState";
 import { createResource, getResource, updateResource } from "../../lib/admin-api";
 import { notifyError, notifySuccess } from "../../lib/notifications";
 import { useAutoSlug } from "../../lib/useAutoSlug";
-import { buildProductPayload, ProductFormFields, type ProductFormValues, type ProductRecord } from "./ProductFormFields";
+import {
+  buildProductPayload,
+  normalizeProductStatus,
+  ProductFormFields,
+  type ProductFormValues,
+  type ProductRecord,
+} from "./ProductFormFields";
 
 type ProductModalProps = {
   open: boolean;
   productId?: string | null;
   onClose: () => void;
-  onSaved: () => void;
+  onSaved: (product: { id: string; name: string; created: boolean }) => void;
 };
 
 export function ProductModal({ open, productId, onClose, onSaved }: ProductModalProps) {
@@ -29,7 +35,7 @@ export function ProductModal({ open, productId, onClose, onSaved }: ProductModal
     }
 
     if (!productId) {
-      const defaults: Partial<ProductFormValues> = { status: "draft", sortOrder: 0 };
+      const defaults: Partial<ProductFormValues> = { status: "inactive" };
       form.setFieldsValue(defaults);
       syncAutoSlugState(defaults);
       return;
@@ -41,6 +47,7 @@ export function ProductModal({ open, productId, onClose, onSaved }: ProductModal
       .then((response) => {
         const values: ProductFormValues = {
           ...response.data,
+          status: normalizeProductStatus(response.data.status),
           image: response.data.image ?? null,
           guideFiles: response.data.guideFiles ?? [],
         };
@@ -55,14 +62,17 @@ export function ProductModal({ open, productId, onClose, onSaved }: ProductModal
     setSaving(true);
     try {
       const payload = buildProductPayload(values);
+      let savedProduct: ProductRecord;
       if (productId) {
-        await updateResource("products", productId, payload as unknown as Record<string, unknown>);
+        const response = await updateResource<ProductRecord>("products", productId, payload as unknown as Record<string, unknown>);
+        savedProduct = response.data;
         notifySuccess("Đã cập nhật sản phẩm");
       } else {
-        await createResource("products", payload as unknown as Record<string, unknown>);
+        const response = await createResource<ProductRecord>("products", payload as unknown as Record<string, unknown>);
+        savedProduct = response.data;
         notifySuccess("Đã tạo sản phẩm");
       }
-      onSaved();
+      onSaved({ id: savedProduct.id, name: savedProduct.name, created: !productId });
       onClose();
     } catch (err) {
       notifyError(err instanceof Error ? err.message : "Không thể lưu sản phẩm");
@@ -81,15 +91,13 @@ export function ProductModal({ open, productId, onClose, onSaved }: ProductModal
       width={820}
     >
       <AsyncState loading={loading} error={error}>
-        <Card bordered={false} styles={{ body: { padding: 0 } }}>
-          <ProductFormFields
-            form={form}
-            saving={saving}
-            onFinish={submit}
-            onCancel={onClose}
-            onSlugChange={handleSlugChange}
-          />
-        </Card>
+        <ProductFormFields
+          form={form}
+          saving={saving}
+          onFinish={submit}
+          onCancel={onClose}
+          onSlugChange={handleSlugChange}
+        />
       </AsyncState>
     </Modal>
   );

@@ -11,6 +11,21 @@ export class WebhookController {
     private readonly payment: PaymentService,
   ) {}
 
+  private extractWebhookSecret(headers: Record<string, string | string[] | undefined>) {
+    const directHeader = Array.isArray(headers["x-sepay-secret"])
+      ? headers["x-sepay-secret"][0]
+      : headers["x-sepay-secret"];
+    if (directHeader) return directHeader;
+
+    const authorization = Array.isArray(headers.authorization)
+      ? headers.authorization[0]
+      : headers.authorization;
+    if (!authorization) return undefined;
+
+    const match = authorization.match(/^Apikey\s+(.+)$/i);
+    return match?.[1]?.trim();
+  }
+
   @HttpCode(200)
   @Post("sepay")
   async sepayWebhook(
@@ -18,9 +33,7 @@ export class WebhookController {
     @Body() body: Record<string, unknown>,
   ) {
     try {
-      const secretHeader = Array.isArray(headers["x-sepay-secret"])
-        ? headers["x-sepay-secret"][0]
-        : headers["x-sepay-secret"];
+      const secretHeader = this.extractWebhookSecret(headers);
       this.sepay.verifyWebhookSecret(secretHeader);
       const event = this.sepay.parseWebhook(body);
       const payment = await this.payment.findPendingPayment(event.paymentCode);
